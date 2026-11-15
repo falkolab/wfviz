@@ -1,0 +1,86 @@
+{
+ "runId": "wf_00000206-leg",
+ "timestamp": "2026-07-11T07:15:07.000Z",
+ "workflowName": "legacy-demo",
+ "status": "completed",
+ "startTime": 1783754017000,
+ "durationMs": 90000,
+ "logs": [
+  "Sweep done: 2/2"
+ ],
+ "phases": [
+  {
+   "title": "Sweep"
+  },
+  {
+   "title": "Synthesize"
+  }
+ ],
+ "workflowProgress": [
+  {
+   "type": "workflow_phase",
+   "index": 1,
+   "title": "Sweep"
+  },
+  {
+   "type": "workflow_phase",
+   "index": 2,
+   "title": "Synthesize"
+  },
+  {
+   "type": "workflow_agent",
+   "index": 1,
+   "label": "find:alpha",
+   "phaseIndex": 1,
+   "phaseTitle": "Sweep",
+   "agentId": "a1000000000000001",
+   "agentType": "general-purpose",
+   "model": "claude-opus-4-8",
+   "state": "done",
+   "startedAt": 1783754017000,
+   "queuedAt": 1783754017000,
+   "attempt": 1,
+   "tokens": 1200,
+   "toolCalls": 0,
+   "durationMs": 40000
+  },
+  {
+   "type": "workflow_agent",
+   "index": 2,
+   "label": "find:beta",
+   "phaseIndex": 1,
+   "phaseTitle": "Sweep",
+   "agentId": "a1000000000000002",
+   "agentType": "general-purpose",
+   "model": "claude-opus-4-8",
+   "state": "done",
+   "startedAt": 1783754017000,
+   "queuedAt": 1783754017000,
+   "attempt": 1,
+   "tokens": 1200,
+   "toolCalls": 0,
+   "durationMs": 55000
+  },
+  {
+   "type": "workflow_agent",
+   "index": 3,
+   "label": "synthesis",
+   "phaseIndex": 2,
+   "phaseTitle": "Synthesize",
+   "agentId": "a1000000000000003",
+   "agentType": "general-purpose",
+   "model": "claude-opus-4-8",
+   "state": "done",
+   "startedAt": 1783754073000,
+   "queuedAt": 1783754017000,
+   "attempt": 1,
+   "tokens": 1200,
+   "toolCalls": 0,
+   "durationMs": 34000
+  }
+ ],
+ "agentCount": 3,
+ "totalTokens": 3600,
+ "totalToolCalls": 0,
+ "result": "Alpha is live; beta is gone."
+}

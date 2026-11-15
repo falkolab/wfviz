@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+evidence/tmp/
+
+# Kept locally, never published (user, 2026-11-15)
+evidence/
+sources/video-frames/
+sources/video-notes.md
+sources/author-prompt.md
+.claude/launch.json

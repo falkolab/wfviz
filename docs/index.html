@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wfviz</title>
+<meta name="description" content="A local, read-only viewer of Claude Code Dynamic Workflow runs.">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1b1f24; --muted: #57606a; --line: #d8dee4; --card: #f6f8fa;
+    --accent: #0b6bcb; --code-bg: #f3f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --fg: #e6e8eb; --muted: #9aa4af; --line: #2a3038; --card: #161a20;
+      --accent: #5aa9ff; --code-bg: #1b2028;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --fg: #e6e8eb; --muted: #9aa4af; --line: #2a3038; --card: #161a20;
+    --accent: #5aa9ff; --code-bg: #1b2028;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 40px; margin: 0 0 4px; letter-spacing: -0.5px; }
+  h2 { font-size: 24px; margin: 48px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 18px; margin: 28px 0 8px; }
+  p, li { color: var(--fg); }
+  .lead { font-size: 19px; color: var(--muted); margin: 0 0 20px; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+  pre { background: var(--code-bg); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  figure { margin: 16px 0 28px; }
+  figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; display: block; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } h1 { font-size: 32px; } }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td:first-child { white-space: nowrap; }
+  .table-wrap { overflow-x: auto; }
+  .links { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  .note { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  footer { margin-top: 56px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>wfviz</h1>
+  <p class="lead">A local, read-only viewer of Claude Code Dynamic Workflow runs: watch agents work live,
+  replay finished runs, see findings, verdicts, tests, tokens and cost.</p>
+  <div class="links">
+    <a href="https://github.com/falkolab/wfviz">Source on GitHub</a>
+    <a href="https://github.com/falkolab/wfviz/blob/main/LICENSE">MIT license</a>
+  </div>
+
+  <figure>
+    <img src="screenshots/run-view.png" alt="A run in wfviz: phases, the role by unit matrix, the report card and the live event log" width="2880" height="1800">
+    <figcaption>A run: phases, roles, the role × unit matrix, the report card and the live event log.</figcaption>
+  </figure>
+
+  <h2>What it is</h2>
+  <p>wfviz reads the files Claude Code writes under <code>~/.claude/projects</code> and shows each
+  Dynamic Workflow run as it happens or after it ended. It only reads: no endpoint writes, starts or stops
+  anything. Every value carries where it came from — written by Claude Code, taken from the run's final
+  file, inferred by wfviz (with the method), or unknown (with the reason). wfviz never makes a value up.</p>
+
+  <h2>Run it</h2>
+  <p>Node.js 20 or newer. No install step: the project has no dependencies.</p>
+<pre><code>git clone https://github.com/falkolab/wfviz.git
+cd wfviz
+node bin/wfviz.mjs</code></pre>
+  <p>wfviz starts a server on <code>127.0.0.1</code> on a free port and opens the browser. It exits on
+  Ctrl+C, or two minutes after the last browser tab closes. A fixed port that stays up:</p>
+<pre><code>node bin/wfviz.mjs --no-open --port 4317 --idle 0</code></pre>
+  <p>No runs of your own yet? <code>node bin/wfviz.mjs --demo</code> plays a built-in demo.</p>
+
+  <h2>What you see</h2>
+  <div class="grid">
+    <figure>
+      <img src="screenshots/agent-drawer.png" alt="The drawer of one agent with its prompt, result, activity and tokens" width="2880" height="1800" loading="lazy">
+      <figcaption>Agent drawer: prompt, result, recent activity, tokens and cost.</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/report-card.png" alt="The report card of a finished run" width="2360" height="1310" loading="lazy">
+      <figcaption>Report card: status, duration, findings, verdicts, tests, tokens and cost.</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/run-list.png" alt="The run picker with the all switch and filters" width="2880" height="1800" loading="lazy">
+      <figcaption>Run list: last 24 hours by default, or every run of every project, with filters.</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/search.png" alt="Search results with the matches highlighted" width="2880" height="1800" loading="lazy">
+      <figcaption>Search across loaded runs: names, prompts, results, activity and log lines.</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/replay.png" alt="A finished run being replayed, paused" width="2880" height="1800" loading="lazy">
+      <figcaption>Replay a finished run at 1×, 4× or 20×; pause keeps the pace, the real view stays as it is.</figcaption>
+    </figure>
+    <figure>
+      <img src="screenshots/demo.png" alt="The demo run with rounds, findings and verdicts" width="2880" height="1800" loading="lazy">
+      <figcaption>Demo mode: a made-up run that never mixes with real data.</figcaption>
+    </figure>
+  </div>
+
+  <h2>Options</h2>
+  <div class="table-wrap">
+  <table>
+    <tr><th>Option</th><th>What it does</th></tr>
+    <tr><td><code>--since &lt;hours&gt;</code></td><td>Runs changed within this window are read in full and watched at start (default 24). Older runs are still listed and read when opened. <code>Infinity</code> reads all at start.</td></tr>
+    <tr><td><code>--root &lt;dir&gt;</code></td><td>Projects folder to read (default <code>~/.claude/projects</code>).</td></tr>
+    <tr><td><code>--offline</code></td><td>Never fetch model prices; costs show as unknown.</td></tr>
+    <tr><td><code>--port &lt;n&gt;</code></td><td>Port on 127.0.0.1 (default: any free port).</td></tr>
+    <tr><td><code>--no-open</code></td><td>Do not open a browser.</td></tr>
+    <tr><td><code>--idle &lt;seconds&gt;</code></td><td>Exit this long after the last browser tab leaves (default 120; 0 = never).</td></tr>
+    <tr><td><code>--demo</code></td><td>Built-in demo runs instead of real ones.</td></tr>
+    <tr><td><code>--replay &lt;run&gt; [--speed &lt;n&gt;]</code></td><td>Replay one saved run at the pace of its own timestamps (speed 0.25–100, default 4).</td></tr>
+  </table>
+  </div>
+
+  <h2>Cost</h2>
+  <p>Token counts come from the run files; one API message written several times is counted once.
+  Cost is an estimate: tokens times prices from OpenRouter's public model list, fetched once an hour when
+  a cost is first shown, with no data about you or your runs. Models without a matching price, Codex and
+  other engines show "cost unknown" with the reason. <code>--offline</code> turns the request off; the demo
+  never fetches prices.</p>
+
+  <h2>Better tracking (optional)</h2>
+  <p>wfviz shows any workflow as it is. A workflow shows more when it follows a few conventions:</p>
+  <ul>
+    <li>agent labels <code>role:unit</code>, with <code>#r2</code> for a repeat round — a role × unit matrix;</li>
+    <li>a phase passed to each agent — agents grouped by stage;</li>
+    <li>results with <code>findings</code>, <code>verdict</code> and <code>tests</code> fields — recognised and counted;</li>
+    <li>run totals in the workflow's return value — shown as the run total;</li>
+    <li><code>log()</code> lines at phase changes — shown in the log.</li>
+  </ul>
+  <figure>
+    <img src="screenshots/tracking-hint.png" alt="The Better tracking notice with a prompt to copy" width="2880" height="1800" loading="lazy">
+    <figcaption>The page offers a ready prompt to copy for your agent.</figcaption>
+  </figure>
+  <p class="note">The <code>plugin/</code> folder holds a small Claude Code plugin that gives every new session
+  this note as context. It never blocks anything and can be switched off. See
+  <a href="https://github.com/falkolab/wfviz/blob/main/plugin/README.md">plugin/README.md</a>.</p>
+
+  <footer>wfviz · MIT license · <a href="https://github.com/falkolab/wfviz">github.com/falkolab/wfviz</a></footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wfviz</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="demo-banner" hidden>DEMO — synthetic data, not a real run</div>
+<div id="replay-banner" hidden>REPLAY — a saved run played back at its own times, not live</div>
+<header class="top">
+  <div class="brand"><span class="logo">◈</span> wfviz <span id="mode" class="badge">…</span></div>
+  <div id="run-select" class="rp" role="group" aria-label="Run">
+    <button id="rp-trigger" class="rp-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="rp-panel" title="choose a run"><span id="rp-cur" class="rp-cur"></span><span class="rp-caret" aria-hidden="true">▾</span></button>
+    <div id="rp-panel" class="rp-panel" hidden>
+      <input id="rp-search" class="rp-search" type="search" placeholder="search runs by name or id" aria-label="Search runs by name or id" autocomplete="off" spellcheck="false" maxlength="200" role="combobox" aria-expanded="true" aria-controls="rp-list" aria-autocomplete="list">
+      <div id="rp-filters" class="rp-filters" role="group" aria-label="Run filters">
+        <label class="rp-switch" title="show every run, not only those of the last 24 h"><input id="rp-all" type="checkbox"><span>all</span></label>
+        <input id="rp-project" class="rp-sel" type="text" list="rp-projects" placeholder="all projects" aria-label="Filter by project" title="project: the directory name as it is on disk (pick one, or clear the field for all)" autocomplete="off" spellcheck="false" maxlength="200">
+        <datalist id="rp-projects"></datalist>
+        <input id="rp-status" class="rp-sel" type="text" list="rp-statuses" placeholder="all statuses" aria-label="Filter by status" autocomplete="off" spellcheck="false" maxlength="200">
+        <datalist id="rp-statuses"></datalist>
+        <label class="rp-date"><span>from</span><input id="rp-from" type="date" aria-label="Runs started on or after this day"></label>
+        <label class="rp-date"><span>to</span><input id="rp-to" type="date" aria-label="Runs started on or before this day"></label>
+        <span id="rp-count" class="rp-count muted" role="status"></span>
+      </div>
+      <div id="rp-list" class="rp-list" role="listbox" aria-label="Runs"></div>
+    </div>
+  </div>
+  <div id="search" class="srch" role="search">
+    <input id="search-input" class="srch-input" type="search" placeholder="search prompts, results, logs" aria-label="Search the text of the loaded runs" aria-controls="search-panel" autocomplete="off" spellcheck="false" maxlength="200">
+    <div id="search-panel" class="srch-panel" hidden>
+      <div id="search-status" class="srch-status muted" role="status"></div>
+      <div id="search-list" class="srch-list" role="list" aria-label="Search results"></div>
+      <div id="search-note" class="srch-note muted" role="status"></div>
+    </div>
+  </div>
+  <span id="rp-note" class="rp-note" role="status" hidden></span>
+  <span id="replay-mark" class="badge replay" title="the run on show is a replay of a finished run, not live" hidden>REPLAY</span>
+  <div id="replay-ctl" class="replay-ctl" role="group" aria-label="Replay" hidden>
+    <span id="replay-speed" class="replay-speed" role="group" aria-label="Replay speed" hidden>
+      <button id="replay-s1" class="replay-btn" type="button" aria-pressed="false">1x</button>
+      <button id="replay-s4" class="replay-btn" type="button" aria-pressed="true">4x</button>
+      <button id="replay-s20" class="replay-btn" type="button" aria-pressed="false">20x</button>
+    </span>
+    <button id="replay-go" class="replay-btn" type="button" title="play this finished run again at its own times" hidden>Replay</button>
+    <button id="replay-pause" class="replay-btn" type="button" hidden>Pause</button>
+    <button id="replay-stop" class="replay-btn" type="button" title="stop the replay and go back to the real view of the run" hidden>Stop</button>
+    <span id="replay-line" class="replay-line" role="status" hidden></span>
+  </div>
+  <span id="stream-note" class="stream-note fact prov-unknown" role="status" hidden>stream disconnected — retrying</span>
+  <div id="run-status" class="stats"></div>
+  <button id="hint-open" class="hint-open" type="button" aria-controls="hint" aria-expanded="false" title="how to make a workflow show more in wfviz (optional)"><svg class="warn icon" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="tri" d="M8 1.2 15.3 14.4H.7z"/><path class="bang" d="M8 5.8v4M8 11.6v1.1"/></svg>Tracking hint</button>
+</header>
+<div id="search-hit" class="srch-hit" role="status" hidden>
+  <span class="srch-hit-label">search hit:</span>
+  <span id="search-hit-where" class="srch-hit-where"></span>
+  <span id="search-hit-text" class="srch-hit-text"></span>
+  <button id="search-hit-close" class="srch-hit-close" type="button" aria-label="Close the search hit" title="close">×</button>
+</div>
+<nav id="steps" class="steps" aria-label="Phases"></nav>
+<main class="grid">
+  <aside class="col left">
+    <section class="card" id="roles-card"><h3>Roles <small class="prov-note">inferred from labels</small></h3><div id="roles"></div></section>
+    <section class="card" id="facts-card"><h3>Run</h3><dl id="facts"></dl></section>
+    <section class="card" id="legend-card"><h3>Legend</h3>
+      <ul class="legend">
+        <li><span class="fact prov-registered">value</span> registered — read from run files while it runs</li>
+        <li><span class="fact prov-final">value</span> final — from the end-of-run file</li>
+        <li><span class="fact prov-inferred">value</span> inferred — computed, hover for method</li>
+        <li><span class="fact prov-unknown">?</span> unknown — source does not provide it</li>
+        <li><svg width="40" height="10"><line x1="0" y1="5" x2="40" y2="5" class="edge strong"/></svg> data-flow (inferred)</li>
+        <li><svg width="40" height="10"><line x1="0" y1="5" x2="40" y2="5" class="edge weak"/></svg> time-order hint (inferred, weak)</li>
+        <li class="muted" id="registered-edges-note"></li>
+      </ul>
+      <label class="toggle"><input type="checkbox" id="weak-toggle"> show weak hints</label>
+    </section>
+  </aside>
+  <div id="handle-left" class="handle handle-v" role="separator" aria-orientation="vertical" aria-label="Resize the left column" title="drag to resize, double-click to reset"></div>
+  <section class="col center">
+    <section class="card" id="report-card" hidden><h3>Run report <small class="prov-note">numbers from the run record</small></h3><div id="report" class="report"></div></section>
+    <div class="view-tabs" role="tablist">
+      <button data-view="matrix" class="on">Matrix</button>
+      <button data-view="phases">Phases</button>
+      <button data-view="timeline">Timeline</button>
+    </div>
+    <div id="view-matrix" class="view">
+      <div id="matrix-empty" class="empty-state" hidden></div>
+      <div id="matrix-grid" class="matrix" hidden></div>
+      <div id="matrix-note" class="mnote" hidden></div>
+      <div id="matrix-fallback" class="fallback" hidden></div>
+    </div>
+    <div id="view-phases" class="view" hidden><div id="lanes" class="lanes"></div></div>
+    <div id="view-timeline" class="view" hidden>
+      <div id="tl-empty" class="empty-state" hidden>No start times yet.</div>
+      <div id="tl-axis" class="tl-axis" hidden></div>
+      <div id="tl" class="tl" hidden><div id="tl-rows"></div><svg class="edges" id="tl-edges"></svg></div>
+    </div>
+    <section class="card" id="tests-card"><h3>Tests</h3><div id="tests"></div></section>
+  </section>
+  <div id="handle-right" class="handle handle-v" role="separator" aria-orientation="vertical" aria-label="Resize the right column" title="drag to resize, double-click to reset"></div>
+  <aside class="col right">
+    <section class="card"><h3>Findings &amp; verdicts</h3><div id="counters" class="counters"></div><div id="verdicts"></div></section>
+  </aside>
+</main>
+<footer id="log-pane" class="log-pane">
+  <div id="handle-log" class="handle handle-h" role="separator" aria-orientation="horizontal" aria-label="Resize the event log" title="drag to resize, double-click to reset"></div>
+  <div class="log-head">
+    <button id="log-toggle" class="log-toggle" type="button" aria-expanded="true" aria-controls="log" title="collapse or expand the event log">
+      <span class="chev" aria-hidden="true">▾</span> Events <small id="log-count"></small>
+    </button>
+    <span id="log-notice" class="log-notice" role="status" hidden></span>
+    <span id="log-meta" class="log-meta"></span>
+  </div>
+  <div id="log" class="log" role="log" aria-live="off"></div>
+  <section id="hint" class="hint" role="dialog" aria-label="Better tracking (optional)" hidden>
+    <div class="hint-head">
+      <h2 class="hint-title"><svg class="warn icon" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="tri" d="M8 1.2 15.3 14.4H.7z"/><path class="bang" d="M8 5.8v4M8 11.6v1.1"/></svg>Better tracking (optional)</h2>
+      <button id="hint-close" class="hint-close" type="button" aria-label="Close">×</button>
+    </div>
+    <p class="hint-line">wfviz shows any run as it is. If you write the workflow, these conventions let it show more.</p>
+    <textarea id="hint-text" class="hint-text" readonly rows="9" spellcheck="false" aria-label="Prompt text to copy"></textarea>
+    <div class="hint-actions"><button id="hint-copy" class="hint-copy" type="button">Copy prompt</button></div>
+  </section>
+</footer>
+<div id="hover" class="hover-panel" role="tooltip" hidden></div>
+<div id="drawer" class="drawer" hidden>
+  <button id="drawer-close" aria-label="Close">×</button>
+  <div id="drawer-body"></div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

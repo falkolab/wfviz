@@ -1,0 +1,13 @@
+{
+  "name": "wfviz",
+  "description": "Local read-only visualizer for Claude Code Dynamic Workflow runs",
+  "version": "0.1.0",
+  "userConfig": {
+    "trackingHint": {
+      "type": "boolean",
+      "title": "Tracking hint",
+      "description": "Add a short note about optional workflow conventions to each new session. Turn off to add nothing.",
+      "default": true
+    }
+  }
+}

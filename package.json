@@ -1,0 +1,30 @@
+{
+  "name": "wfviz",
+  "version": "0.1.0",
+  "description": "Local read-only visualizer for Claude Code Dynamic Workflow runs",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "wfviz": "bin/wfviz.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bin/wfviz.mjs",
+    "demo": "node bin/wfviz.mjs --demo",
+    "demo:replay": "node bin/wfviz.mjs --replay wf_6509ce25-20a --root fixtures/claude-projects --speed 8",
+    "test": "node --test test/",
+    "test:source": "node --test test/source/",
+    "test:model": "node --test test/model/",
+    "test:server": "node --test test/server/",
+    "test:demo": "node --test test/demo/",
+    "test:workflows": "node --test test/workflows/"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/falkolab/wfviz.git"
+  },
+  "homepage": "https://falkolab.github.io/wfviz/"
+}

@@ -1,0 +1,410 @@
+:root {
+  color-scheme: dark; /* the native controls and scrollbars follow the dark palette below */
+  --bg: #0b0d12; --panel: #12151d; --panel2: #171b25; --line: #252a36; --text: #d7dbe5; --muted: #7d8597;
+  /* nine neutral colour slots: the page gives them to the roles of a run (and to the values of a recognised field) in order of first
+     appearance; --other is for what has no role */
+  --c1: #ff9f43; --c2: #ff5c8a; --c3: #a37bff; --c4: #4cd6a0; --c5: #5aa9ff; --c6: #7fd1e8; --c7: #e88fd1; --c8: #b6e36b; --c9: #9aa5ff;
+  --other: #c9b458;
+  /* by function: the accent (logo, active step, spotlight), a finding, a replay */
+  --accent: #ff9f43; --finding: #ff5c8a; --info: #5aa9ff;
+  --run: #ff9f43; --done: #4cd6a0; --fail: #ff4d5e; --unk: #6b7280; --warn: #f5c542;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+/* scrollbars in the colours of the page, in every scrolling area (the columns, the log, the drawer, the panels, the picker): a thin
+   thumb from --muted over the panel colour and a see-through track. Only tokens, no colour of their own, so a theme that sets the
+   tokens sets the scrollbars with them. scrollbar-color and scrollbar-width are for Firefox and current Chrome and Safari; the
+   ::-webkit-scrollbar rules are for the WebKit that has not got them. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 55%, var(--panel)) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-corner { background: transparent; }
+*::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 55%, var(--panel)); border: 2px solid transparent; background-clip: padding-box; border-radius: 6px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+/* the keyboard: a focused control shows where it is */
+button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+mark { background: color-mix(in srgb, var(--accent) 38%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+/* the page is as high as the window: the header and the phase bar take what they need, the log has its own height
+   (--log-h), the three columns share the rest and each scrolls inside itself */
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 var(--mono); }
+body { display: flex; flex-direction: column; overflow: hidden; }
+body.resizing { user-select: none; -webkit-user-select: none; }
+#demo-banner { flex: none; background: repeating-linear-gradient(45deg, #5b4a00, #5b4a00 12px, #3d3200 12px, #3d3200 24px); color: #ffe27a; text-align: center; font-weight: 700; padding: 6px; letter-spacing: .08em; }
+.top { flex: none; display: flex; gap: 12px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.brand { font-weight: 700; }
+.logo { color: var(--accent); }
+.badge { border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 11px; margin-left: 6px; }
+.badge.real { color: var(--done); border-color: var(--done); }
+.badge.demo { color: var(--warn); border-color: var(--warn); }
+.badge.replay { color: var(--info); border-color: var(--info); }
+.badge.unknown { color: var(--unk); border-color: var(--unk); }
+/* a replay is real data played back at its own times: its banner is not the striped one of the demo */
+#replay-banner { flex: none; background: color-mix(in srgb, var(--info) 18%, var(--panel)); color: var(--info); border-bottom: 1px solid var(--info); text-align: center; font-weight: 700; padding: 6px; letter-spacing: .08em; }
+/* replay of a finished run: the mark next to the run name (the .badge.replay look), the control (speed, buttons) and one line of text for
+   "replay finished" or the reason of a failure. [hidden] hides each of them, so a part that is not offered takes no room in the header */
+.replay-ctl { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.replay-speed { display: inline-flex; gap: 2px; }
+.replay-btn { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font: inherit; font-size: 11px; cursor: pointer; }
+.replay-btn:hover { border-color: var(--muted); }
+.replay-btn[aria-pressed="true"] { color: var(--info); border-color: var(--info); }
+.replay-line { flex: 0 1 auto; min-width: 0; color: var(--info); font-size: 11px; overflow-wrap: anywhere; }
+.replay-line.bad { color: var(--warn); }
+/* the run picker: a button that shows the run on show, and a dropdown with a search field and one row per run, in the colours of the page */
+.rp { position: relative; flex: 0 1 auto; min-width: 24ch; max-width: 100%; }
+.rp-trigger { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 100%; text-align: left; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; cursor: pointer; }
+.rp-trigger:hover, .rp-trigger[aria-expanded="true"] { border-color: var(--muted); }
+.rp-cur { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-cur-in { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-caret { flex: none; color: var(--muted); font-size: 10px; }
+/* the dropdown is fixed to the window, 14 px from both sides, and centred when it is narrower: below the button (top is left at its place in
+   the flow), never wider than the window, so it cannot run past the edge or make the page scroll sideways */
+.rp-panel { position: fixed; z-index: 30; left: 14px; right: 14px; margin: 4px auto 0; width: min(780px, calc(100vw - 28px)); max-height: min(70vh, 480px); display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--muted); border-radius: 6px; box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 90%, transparent); }
+.rp-search { flex: none; margin: 6px; padding: 5px 8px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+.rp-search::placeholder { color: var(--muted); }
+/* positioned: the rows measure their place from the list, which scrolls them into view by itself */
+.rp-filters { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 6px 6px; min-width: 0; }
+.rp-switch, .rp-date { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.rp-sel, .rp-date input { min-width: 0; max-width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; font: inherit; font-size: 12px; }
+.rp-sel { flex: 1 1 12ch; text-overflow: ellipsis; }
+.rp-date input { flex: 0 1 auto; width: 9.5em; }
+.rp-count { margin-left: auto; font-size: 11px; white-space: nowrap; }
+.rp-note { flex: 0 1 auto; min-width: 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.rp-note.err { color: var(--fail); }
+.rp-row.unloaded .rp-name { opacity: .8; }
+.rp-state { font-style: italic; }
+.rp-state.loading { color: var(--text); }
+.rp-proj { overflow-wrap: anywhere; }
+.rp-list { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 6px 6px; }
+.rp-row { padding: 5px 8px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; }
+.rp-row:hover { background: var(--panel2); }
+.rp-row.active { background: var(--panel2); border-color: var(--muted); }
+.rp-row.sel .rp-name { font-weight: 700; }
+.rp-top { display: flex; align-items: baseline; gap: 8px; }
+.rp-top .tag { flex: none; margin-left: auto; }
+.rp-name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.rp-meta { margin-top: 1px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.rp-meta .sep { opacity: .6; }
+.rp-empty { padding: 10px 8px; text-align: center; }
+/* the search box of the header and its results: the panel is fixed to the window like the run picker's dropdown (14 px from both sides, centred
+   when narrower, never wider than the window), below the box, over the columns and the drawer's z-index (it is hidden when a result is opened, so
+   it does not cover the drawer that opens). The list scrolls inside the panel; a row wraps: names and the excerpt break anywhere. */
+.srch { position: relative; flex: 0 1 30ch; min-width: 16ch; max-width: 100%; }
+.srch-input { display: block; width: 100%; min-width: 0; padding: 4px 8px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+.srch-input::placeholder { color: var(--muted); }
+.srch-input:hover, .srch-input:focus { border-color: var(--muted); }
+.srch-panel { position: fixed; z-index: 30; left: 14px; right: 14px; margin: 4px auto 0; width: min(780px, calc(100vw - 28px)); max-height: min(70vh, 480px); display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--muted); border-radius: 6px; box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 90%, transparent); }
+.srch-status, .srch-note { flex: none; padding: 6px 10px; font-size: 12px; overflow-wrap: anywhere; }
+.srch-note { border-top: 1px solid var(--line); font-size: 11px; }
+/* the status line is always in the panel and keeps the room of one line (the line height of its text, em so it follows the font, plus the 12 px of
+   padding; box-sizing is border-box), also when it says nothing: the rows below do not move when "searching..." comes and goes. A longer text
+   (a failure reason) wraps and is taller; only an empty list shows one. */
+.srch-status { line-height: 1.4; min-height: calc(1.4em + 12px); }
+.srch-list { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 6px 6px; }
+.srch-row { padding: 5px 8px; border: 1px solid transparent; border-radius: 4px; cursor: pointer; }
+.srch-row:hover, .srch-row:focus { background: var(--panel2); border-color: var(--muted); }
+.srch-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.srch-run { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.srch-agent { color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.srch-field { color: var(--muted); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.srch-excerpt { margin-top: 2px; color: var(--muted); font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+.srch-excerpt mark { color: var(--text); }
+/* the notice under the header for a result of a run's own field (name, description, log line): one line that wraps, the excerpt breaks anywhere */
+.srch-hit { flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 4px 14px; border-bottom: 1px solid var(--line); background: var(--panel2); font-size: 12px; }
+.srch-hit-label { color: var(--muted); }
+.srch-hit-where { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.srch-hit-text { flex: 1 1 20ch; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.srch-hit-text mark { color: var(--text); }
+.srch-hit-close { flex: none; margin-left: auto; background: none; border: none; color: var(--text); font: inherit; font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.stats { display: flex; gap: 14px; margin-left: auto; color: var(--muted); flex-wrap: wrap; }
+.stat { white-space: nowrap; }
+.stream-note { font-size: 11px; padding: 1px 6px; }
+.stats b { color: var(--text); font-weight: 600; }
+.steps { flex: none; display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.step { border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; color: var(--muted); white-space: nowrap; transition: all .3s; }
+.step.active { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 12px -2px var(--accent); }
+.step.done { color: var(--done); border-color: #1f4d3c; }
+.step.interrupted { color: var(--warn); border-color: var(--warn); border-style: dashed; }
+.step .n { opacity: .6; margin-right: 4px; }
+.grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: var(--left-w, 240px) 8px minmax(0, 1fr) 8px var(--right-w, 300px); grid-template-rows: minmax(0, 1fr); padding: 10px 14px 0; }
+/* a column scrolls inside itself in both directions: what does not fit (a matrix of many roles in a narrow centre) is reached by
+   scrolling, never cut off */
+.col { min-height: 0; min-width: 0; overflow-x: auto; overflow-y: auto; scrollbar-gutter: stable; }
+/* resize handles: between the columns (width) and on the top edge of the log (height) */
+.handle { position: relative; flex: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+.handle::after { content: ""; position: absolute; border-radius: 2px; background: var(--line); transition: background .15s; }
+.handle:hover::after, .handle.drag::after { background: var(--muted); }
+.handle-v { cursor: col-resize; }
+.handle-v::after { top: 0; bottom: 10px; left: 3px; width: 2px; }
+.handle-h { cursor: row-resize; height: 8px; margin: 0 -14px; }
+.handle-h::after { left: 14px; right: 14px; top: 3px; height: 2px; }
+/* one column: the handles go, the page scrolls as a whole */
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: max-content; align-content: start; overflow-y: auto; }
+  .col { overflow: visible; }
+  .handle-v { display: none; }
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; margin-bottom: 10px; transition: box-shadow .4s, border-color .4s; }
+.card h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
+.card.spot { border-color: var(--accent); box-shadow: 0 0 18px -6px var(--accent); }
+small, .muted { color: var(--muted); font-size: 11px; }
+.prov-note { text-transform: none; letter-spacing: 0; font-style: italic; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; }
+dt { color: var(--muted); }
+dd { margin: 0; overflow-wrap: anywhere; }
+/* provenance */
+.fact { border-radius: 3px; padding: 0 3px; }
+.prov-registered { color: var(--text); }
+.prov-final { color: var(--text); border-bottom: 1px double var(--muted); }
+.prov-inferred { color: #c7b8ff; font-style: italic; border-bottom: 1px dashed #7a68c4; }
+.prov-inferred::before { content: "~"; opacity: .7; }
+.prov-unknown { color: var(--unk); border: 1px dashed var(--unk); font-style: normal; }
+.legend { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 5px; font-size: 11px; }
+.toggle { font-size: 11px; color: var(--muted); }
+/* roles */
+.role { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 4px 0; }
+.role .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+/* a long role name wraps inside the column, whatever its length: it is never cut */
+.role .rname { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.role .busy { margin-left: auto; font-size: 11px; color: var(--muted); }
+.role .busy.on { color: var(--run); }
+/* views */
+.view-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.view-tabs button { background: var(--panel); color: var(--muted); border: 1px solid var(--line); padding: 4px 10px; font: inherit; cursor: pointer; border-radius: 4px; }
+.view-tabs button.on { color: var(--text); border-color: var(--muted); }
+.view { position: relative; min-height: 200px; padding: 8px 8px 6px 4px; }
+/* matrix */
+/* the cells and the label of one row are as tall as the row (the tallest of them): the grid stretches them, and a cell centres its
+   own content. A header cell keeps its own centring. */
+.matrix { display: grid; gap: 4px; align-items: stretch; position: relative; }
+.mhead { min-width: 0; color: var(--muted); font-size: 11px; text-align: center; text-transform: uppercase; padding-bottom: 4px; overflow-wrap: anywhere; align-self: center; }
+.mhead.colspot { color: var(--accent); }
+.mrow-label { min-width: 0; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; min-height: 46px; transition: border-color .3s, background .3s; }
+.mrow-label .u { font-weight: 600; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0; row-gap: 0; }
+/* the name is one box of its own width: it moves below the toggle when it does not fit beside it, and breaks inside only when it
+   does not fit in the column at all */
+.mrow-label .u-name { flex: 0 1 auto; min-width: 0; }
+/* the tags start on their own line below the name and wrap between tags; an empty line of no height ends the name's line, and a
+   label with no tags does not grow. A tag is a box as wide as its text that never shrinks below it (basis auto, no shrink: its own
+   margin would otherwise squeeze a tag that fits the column and split it at a hyphen), so a tag that fits the column stays whole.
+   Only a tag wider than the column is held to the column (max-width) and then breaks inside, the same last resort as the name:
+   it is shown in full and does not run under the cell of the next column. */
+.mrow-label .u::after { content: ""; flex: 0 0 100%; order: 1; height: 0; }
+.mrow-label .tag-i { order: 2; flex: 0 0 auto; max-width: 100%; margin: 2px 4px 0 0; }
+.mrow-label.st-running { border-color: #6b4a1f; }
+.mrow-label.st-done { border-color: #1f4d3c; }
+.mrow-label.st-failed { border-color: var(--fail); }
+.cell { min-height: 46px; padding: 2px 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); position: relative; display: flex; flex-direction: column; gap: 1px; align-items: center; justify-content: center; cursor: pointer; transition: background .3s, border-color .3s; }
+.cell { min-width: 0; }
+/* a cell with several agents: each agent's tag and state, in start order */
+.cell .cell-agents { display: flex; flex-direction: column; align-items: center; gap: 3px; max-width: 100%; font-size: 9px; line-height: 1.3; color: var(--muted); text-align: center; }
+.cell .ca { max-width: 100%; overflow-wrap: anywhere; }
+/* the state tag is a box of its own line height, so the border of one line never touches the next line's; the space before it is the
+   space of the markup */
+.cell .ca .tag { display: inline-block; font-size: 9px; line-height: 1.3; padding: 0 4px; }
+.mnote { color: var(--muted); font-size: 11px; margin: 10px 0 6px; padding: 3px 8px; border: 1px dashed var(--line); border-radius: 4px; overflow-wrap: anywhere; }
+/* fallback rows: a phase and its agents, captioned with the label as it is */
+.fallback { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: stretch; }
+.fb-head { flex: 0 0 100%; margin-top: 6px; font-weight: 600; overflow-wrap: anywhere; }
+.fb-head:first-child { margin-top: 0; }
+.cell.fb-cell { flex: 1 1 150px; max-width: 320px; min-height: 40px; padding: 4px 6px; gap: 3px; }
+.cell.fb-cell .cap { max-width: 100%; text-align: center; overflow-wrap: anywhere; }
+.cell.empty { cursor: default; opacity: .45; }
+.cell .ico { font-size: 15px; }
+.cell .badge-r { position: absolute; top: -6px; right: -6px; font-size: 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 0 4px; }
+.cell .badge-f { position: absolute; bottom: -6px; right: -6px; font-size: 10px; background: var(--finding); color: #000; border-radius: 8px; padding: 0 4px; animation: pop .3s ease-out; }
+.st-running { border-color: var(--c, var(--run)); box-shadow: 0 0 14px -4px var(--c, var(--run)); }
+.cell.st-running::after { content: ""; position: absolute; inset: -2px; border-radius: 8px; border: 2px solid var(--c, var(--run)); animation: ripple 1.6s ease-out infinite; pointer-events: none; }
+.st-done { border-color: color-mix(in srgb, var(--c, var(--done)) 45%, var(--line)); }
+.st-failed { border-color: var(--fail); background: #2a1116; }
+.st-unknown { border-style: dashed; border-color: var(--unk); }
+/* interrupted: the run ended (killed or failed) while the agent was running. Not busy: no ripple, no growing bar. */
+.st-interrupted { border-style: dashed; border-color: var(--warn); background: repeating-linear-gradient(135deg, transparent 0 6px, #f5c5421f 6px 12px); }
+.cell .badge-i { position: absolute; top: -6px; left: -6px; font-size: 10px; background: var(--panel2); color: var(--warn); border: 1px solid var(--warn); border-radius: 8px; padding: 0 4px; }
+.mrow-label.st-interrupted { border-color: var(--warn); }
+/* the selected agent (its drawer is open) */
+.cell.sel, .acard.sel, .tl-bar.sel { outline: 2px solid var(--text); outline-offset: 1px; opacity: 1; }
+.tl-bar.rel { outline: 1px dashed var(--muted); outline-offset: 1px; }
+/* round history of a matrix row */
+.hist-toggle { background: none; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font: inherit; font-size: 10px; line-height: 1; padding: 1px 4px; margin-right: 5px; cursor: pointer; }
+.hist-toggle:hover { color: var(--text); border-color: var(--muted); }
+.hist { grid-column: 1 / -1; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; margin: -1px 0 2px; }
+.hist-group + .hist-group { margin-top: 6px; }
+.hist-group h5 { margin: 0 0 3px; font-size: 11px; color: var(--muted); font-weight: 600; }
+.hist-row { display: grid; grid-template-columns: 70px minmax(60px, 120px) minmax(0, 1fr) 70px 60px; gap: 8px; align-items: baseline; padding: 2px 4px; border-left: 3px solid var(--c, var(--other)); border-radius: 3px; cursor: pointer; }
+.hist-row:hover { background: var(--panel2); }
+.hist-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-row .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) { .hist-row { grid-template-columns: 60px 1fr 60px 50px; } .hist-row .lbl { display: none; } }
+.tag-i { color: #c7b8ff; font-size: 11px; font-weight: 400; margin-left: 4px; }
+/* a live event of an agent: its cell / bar / card lights up for 1.5 s (never for backlog events) */
+.flash::before { content: ""; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: color-mix(in srgb, var(--c, var(--accent)) 28%, transparent);
+  box-shadow: 0 0 0 2px var(--c, var(--accent)), 0 0 16px 2px var(--c, var(--accent));
+  animation: flash 1.5s ease-out var(--fd, 0s) both; }
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+/* the ring grows as a shadow, not as a scaled box: a transform would widen the scrollable area of the column and a scrollbar would
+   come and go with every running cell at the edge */
+@keyframes ripple { from { box-shadow: 0 0 0 0 var(--c, var(--run)); opacity: .9; } to { box-shadow: 0 0 0 8px var(--c, var(--run)); opacity: 0; } }
+@keyframes pop { from { transform: scale(.2); } to { transform: scale(1); } }
+/* phases view */
+.lanes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 8px; overflow-x: auto; }
+.lane { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.lane.active { border-color: var(--accent); box-shadow: 0 0 16px -6px var(--accent); }
+.lane h4 { margin: 0 0 6px; font-size: 12px; }
+.acard { border: 1px solid var(--line); border-left: 3px solid var(--c, var(--other)); border-radius: 4px; padding: 5px 6px; margin-bottom: 5px; cursor: pointer; background: var(--panel2); position: relative; animation: slidein .35s ease-out; }
+.acard .lbl { font-weight: 600; overflow-wrap: anywhere; }
+.acard .meta { font-size: 11px; color: var(--muted); }
+/* timeline */
+.tl { position: relative; }
+.lane-cards { min-width: 0; }
+.tl-row { display: grid; grid-template-columns: 170px 1fr; align-items: center; height: 24px; }
+.tl-row .lbl { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; cursor: pointer; }
+.tl-track { position: relative; height: 16px; }
+.tl-bar { position: absolute; height: 14px; top: 1px; border-radius: 3px; background: var(--c, var(--other)); opacity: .85; cursor: pointer; min-width: 3px; }
+.tl-bar.st-running { background: repeating-linear-gradient(90deg, var(--c), var(--c) 6px, transparent 6px, transparent 9px); animation: march 1s linear infinite; background-size: 18px 100%; }
+@keyframes march { to { background-position: 18px 0; } }
+.tl-bar.st-interrupted { background: repeating-linear-gradient(135deg, var(--warn) 0 4px, transparent 4px 8px); border: 1px dashed var(--warn); opacity: .9; animation: none; }
+.tl-axis { display: grid; grid-template-columns: 170px 1fr; color: var(--muted); font-size: 10px; margin-bottom: 4px; }
+svg.edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.edge { fill: none; stroke-width: 1.6; }
+.edge.strong { stroke: var(--finding); stroke-dasharray: 6 4; }
+.edge.weak { stroke: var(--muted); stroke-dasharray: 2 4; opacity: .7; }
+.edge.draw { stroke-dashoffset: 400; animation: draw 1.2s ease-out forwards; }
+/* the edges of the selected agent stand out, every other edge steps back */
+.edge.hl { stroke-width: 3.2; opacity: 1; }
+.edge.dim { opacity: .12; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+/* right */
+.counters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+.counter { min-width: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: 6px; }
+.counter .v { font-size: 20px; font-weight: 700; }
+.counter .k { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.fcard { border: 1px solid var(--line); border-left: 3px solid var(--c, var(--finding)); border-radius: 4px; padding: 6px; margin-bottom: 6px; background: var(--panel2); animation: slidein .35s ease-out; cursor: pointer; }
+.fcard .h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 6px; font-size: 11px; color: var(--muted); }
+.fcard .h > span { min-width: 0; overflow-wrap: anywhere; }
+.fcard .t { overflow-wrap: anywhere; }
+.tag { font-size: 10px; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.tag.pass { color: var(--done); border-color: var(--done); }
+.tag.fail { color: var(--fail); border-color: var(--fail); }
+/* a recognised verdict: the value is the text, its colour a slot given in order of appearance (--c is set on the tag) */
+.tag.vt { color: var(--c, var(--text)); border-color: var(--c, var(--line)); }
+.tag.running { color: var(--run); border-color: var(--run); }
+.tag.killed, .tag.interrupted, .tag.trunc { color: var(--warn); border-color: var(--warn); }
+@keyframes slidein { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* tests */
+.tests-row { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
+/* "showing N of M": the card shows fewer rows than the run has, and the button offers the rest */
+.tests-more { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.more-toggle { background: none; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font: inherit; font-size: 11px; padding: 1px 8px; cursor: pointer; }
+.more-toggle:hover { color: var(--text); border-color: var(--muted); }
+.bar { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; flex: 1; min-width: 80px; }
+.bar > i { display: block; height: 100%; background: var(--done); transition: width .4s; }
+/* event log: the bottom pane of the page, --log-h high (80 px .. 60% of the height, set by dragging its top edge), the lines
+   scroll inside it. A collapsed pane is only its head; its saved height comes back when it opens. */
+.log-pane { flex: none; position: relative; height: var(--log-h, 190px); max-height: 60vh; display: flex; flex-direction: column;
+  background: var(--bg); border-top: 1px solid var(--line); padding: 0 14px 6px; }
+.log-pane.collapsed { height: auto; }
+.log-pane.collapsed .handle-h { display: none; }
+.log-head { flex: none; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.log-head small { text-transform: none; letter-spacing: 0; }
+.log-toggle { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; text-align: left; }
+.log-toggle:hover { color: var(--text); }
+.log-toggle .chev { display: inline-block; width: 1.2em; }
+.log-meta { text-transform: none; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the head of the pane says the backlog did not load only while the log is collapsed (open, the line in the log says it) */
+.log-notice { flex: 0 1 auto; min-width: 0; color: var(--warn); text-transform: none; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-pane:not(.collapsed) .log-notice { display: none; }
+.log { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: 11px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+.log-pane.collapsed .log { display: none; }
+.log-pane.collapsed .log-head { margin-bottom: 0; }
+.log .ll { display: flex; gap: 6px; align-items: baseline; white-space: nowrap; padding: 1px 0; }
+.log .ll[data-agent] { cursor: pointer; }
+.log .ll[data-agent]:hover { background: var(--panel2); }
+.log .ll .t { flex: none; }
+.log .ll .t.agent-time { color: var(--text); }
+.log .ll .who { flex: 0 1 26ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.log .ll .msg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.log .ll .sep { flex: none; opacity: .5; }
+.log .ll .st { flex: none; }
+.log .ll.missing, .log .ll.notice { color: var(--warn); }
+.log .ll.notice { white-space: normal; overflow-wrap: anywhere; }
+.log:empty::before { content: "waiting for events…"; }
+/* hover activity panel (matrix cell, timeline bar) */
+.hover-panel { position: fixed; z-index: 20; pointer-events: none; max-width: min(460px, calc(100vw - 16px)); background: var(--panel2); border: 1px solid var(--muted); border-radius: 6px; padding: 6px 8px; font-size: 11px; box-shadow: 0 6px 24px #000a; }
+.hover-panel[hidden] { display: none; }
+.hover-panel .h-title { display: flex; gap: 8px; align-items: baseline; margin-bottom: 3px; }
+.hover-panel .h-title b { overflow-wrap: anywhere; }
+.hover-panel .h-note { color: var(--warn); margin-bottom: 3px; overflow-wrap: anywhere; }
+.hover-panel .h-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hover-panel .h-item small { margin-right: 4px; }
+.hover-panel .h-ev { margin-top: 4px; padding-top: 3px; border-top: 1px solid var(--line); color: var(--muted); overflow-wrap: anywhere; }
+/* run report */
+.report { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.report .cell-r { background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; }
+.report .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.report .v { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.report .v small { font-weight: 400; }
+.report .sub { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.report .err-more summary { cursor: pointer; color: var(--muted); }
+/* the cost line and the note about other engines run over the whole card; the cost is a sentence, not a number */
+.report .wide { grid-column: 1 / -1; }
+.report .cost .v { font-size: 13px; font-weight: 600; }
+.report .err-more pre { margin: 4px 0 0; max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px; font-size: 11px; }
+/* drawer */
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100vw); background: var(--panel); border-left: 1px solid var(--line); padding: 16px; overflow-y: auto; box-shadow: -10px 0 40px #0008; animation: drawin .25s ease-out; z-index: 10; }
+@keyframes drawin { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+#drawer-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--text); font-size: 22px; cursor: pointer; }
+.drawer h2 { margin: 0 0 10px; font-size: 15px; overflow-wrap: anywhere; }
+.drawer pre { background: var(--bg); border: 1px solid var(--line); padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow-y: auto; font-size: 12px; }
+.act { border-bottom: 1px solid var(--line); padding: 3px 0; font-size: 12px; overflow-wrap: anywhere; }
+.edge-row { border: 1px solid var(--line); border-left: 3px solid var(--finding); border-radius: 4px; padding: 4px 6px; margin-bottom: 5px; font-size: 12px; background: var(--panel2); }
+.edge-row.weak { border-left-color: var(--muted); }
+.edge-row .lk { cursor: pointer; text-decoration: underline dotted; }
+.edge-row .meta { color: var(--muted); font-size: 11px; }
+.edge-row .meta b { color: var(--text); font-weight: 600; }
+.edge-row .ev { margin-top: 2px; overflow-wrap: anywhere; }
+/* diff panel */
+.diff { border: 1px solid var(--line); border-radius: 5px; margin-bottom: 8px; background: var(--panel2); }
+.diff-h { padding: 5px 8px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.diff-h .file { overflow-wrap: anywhere; }
+.dblock { border-top: 1px solid var(--line); }
+.dblock .dname { font-size: 11px; color: var(--muted); padding: 2px 8px; }
+.dblock pre { margin: 0; border: 0; border-radius: 0; max-height: 240px; }
+.dblock.old pre { background: #2a1116; color: #ffb4bd; }
+.dblock.new pre { background: #10281f; color: #9ee8c4; }
+.dblock.old .dname { color: var(--fail); }
+.dblock.new .dname { color: var(--done); }
+.dblock small { display: block; padding: 2px 8px; }
+.diff .flag { display: inline-block; margin: 4px 8px; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.diff-edit { border-top: 2px solid var(--line); }
+.diff-edit .dname.idx { padding: 4px 8px 0; color: var(--muted); font-size: 11px; }
+.empty-state { color: var(--muted); padding: 30px; text-align: center; }
+/* the tracking notice: a small panel over the bottom-right corner of the page, inside the log pane's box so that its bottom edge is
+   10 px above the top of the pane whatever the pane's height (open, dragged or collapsed to its head) and it never covers the pane's
+   head. Its z-index is above the columns and below the drawer (10): an open drawer covers it, it is not moved. It is as wide as 420 px
+   or the window less 14 px each side, at most half as high as the window, and where the window is short or the log tall at most the
+   room above the log less 100 px (about the page header and the phase bar; never under 120 px), and scrolls inside itself when its
+   content is taller. The prompt box has its own height and scrolls inside it. */
+.hint { position: absolute; right: 14px; bottom: calc(100% + 10px); z-index: 5; width: min(420px, calc(100vw - 28px)); max-width: 420px;
+  max-height: min(50vh, max(120px, calc(100vh - var(--log-h, 190px) - 100px))); overflow-y: auto; padding: 10px;
+  background: var(--panel); border: 1px solid var(--muted); border-radius: 6px; box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 90%, transparent); }
+.hint-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.hint-title { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.hint-close { flex: none; background: none; border: 0; padding: 0 2px; margin: -2px -2px 0 0; font: inherit; font-size: 20px; line-height: 1; color: var(--muted); cursor: pointer; }
+.hint-close:hover { color: var(--text); }
+.hint-line { margin: 6px 0 8px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.hint-text { display: block; width: 100%; resize: none; padding: 6px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; font: inherit; font-size: 11px; line-height: 1.4; }
+.hint-actions { margin-top: 8px; }
+.hint-copy, .hint-open { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 3px 10px; font: inherit; cursor: pointer; }
+.hint-copy:hover, .hint-open:hover { border-color: var(--muted); }
+/* the header button is smaller than the copy button, so that it takes no more of the header's row than it must */
+.hint-open { flex: none; position: relative; padding: 2px 8px; font-size: 11px; }
+/* the warning sign (a yellow triangle with a "!") in the header button and in the title of the notice: a mark only, the text stays the
+   name. The triangle is --warn, the "!" is the page background. The negative margins keep it from making the line it stands in taller. */
+.icon.warn { flex: none; width: 14px; height: 14px; margin: -2px 5px -2px 0; vertical-align: -2px; }
+.icon.warn .tri { fill: var(--warn); stroke: var(--warn); stroke-width: 1; stroke-linejoin: round; }
+.icon.warn .bang { fill: none; stroke: var(--bg); stroke-width: 1.8; stroke-linecap: round; }
+/* in the header button the sign hangs over the button's top-left corner and takes no room in the line: the button keeps its width, so the
+   header wraps exactly as it does without the sign (14 px and a margin in the line pushed the button to a row of its own at some widths) */
+.hint-open > .icon.warn { position: absolute; left: -7px; top: -7px; margin: 0; }

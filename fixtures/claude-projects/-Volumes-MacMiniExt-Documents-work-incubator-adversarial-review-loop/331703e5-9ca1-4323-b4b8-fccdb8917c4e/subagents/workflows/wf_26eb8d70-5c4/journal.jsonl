@@ -1,0 +1,13 @@
+{"type":"launched"}
+{"type":"started","key":"v2:88ca9b564e780cd0e5d7131e61ed8e75ca0d02576dcfa468d66294ed04ff1c48","agentId":"a66894b94f6da9868","label":"stage1:alpha","phase":"Pipe"}
+{"type":"started","key":"v2:8f06d56fae4e8c7952093df51f867ebcdbc8cb2dd7b9a6107d4120d044274920","agentId":"ae18eae058ad603e0","label":"stage1:beta","phase":"Pipe"}
+{"type":"started","key":"v2:33f66bf45f231abd6df44be0fce4ac6e04e93e8dad9cc2aa0b9e609c2a51adef","agentId":"a271463281fa488e8","label":"stage1:gamma","phase":"Pipe"}
+{"type":"result","key":"v2:8f06d56fae4e8c7952093df51f867ebcdbc8cb2dd7b9a6107d4120d044274920","agentId":"ae18eae058ad603e0","result":"beta fast done"}
+{"type":"result","key":"v2:33f66bf45f231abd6df44be0fce4ac6e04e93e8dad9cc2aa0b9e609c2a51adef","agentId":"a271463281fa488e8","result":"gamma fast done"}
+{"type":"started","key":"v2:2d3038b7fafc4d8bbffd442e5d7af71eba25f219fcb72fe2b5692e20b8987a0d","agentId":"aedecee8b3304ac76","label":"stage2:gamma","phase":"Pipe"}
+{"type":"result","key":"v2:2d3038b7fafc4d8bbffd442e5d7af71eba25f219fcb72fe2b5692e20b8987a0d","agentId":"aedecee8b3304ac76","result":"gamma stage2 done"}
+{"type":"result","key":"v2:88ca9b564e780cd0e5d7131e61ed8e75ca0d02576dcfa468d66294ed04ff1c48","agentId":"a66894b94f6da9868","result":"alpha slow done","toolsUsed":["Bash"]}
+{"type":"started","key":"v2:7df3d9d4ca9aab8ec793d1465128f781bd576fe982bbf94e008e4abd8f3379e0","agentId":"ab87f05075146a588","label":"stage2:alpha","phase":"Pipe"}
+{"type":"result","key":"v2:7df3d9d4ca9aab8ec793d1465128f781bd576fe982bbf94e008e4abd8f3379e0","agentId":"ab87f05075146a588","result":"alpha stage2 done"}
+{"type":"started","key":"v2:4b8d3476767baaf76fb871951d1af932f64743d44446bec9bed16f38f1f66f96","agentId":"a824eb7633bd2e38d","label":"errors:ok","phase":"Errors"}
+{"type":"result","key":"v2:4b8d3476767baaf76fb871951d1af932f64743d44446bec9bed16f38f1f66f96","agentId":"a824eb7633bd2e38d","result":"ok"}

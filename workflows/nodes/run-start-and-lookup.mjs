@@ -1,0 +1,30 @@
+// Node RT1 in graph.md: three defects seen on the replay of wf_3e37ce7f-482 (user, 2026-11-10: "not small, do them").
+// (1) The run start is taken from the script file's time before any agent start. That run was started from a script
+//     saved at 15:22:42; its first agent record is 18:16:23; so until the final file arrives (event 228 of 228 in a replay,
+//     the whole run when live) the header shows about 178 min for a 4 min 48 s run. Measured by the orchestrator with
+//     createReplaySource + createStore + elapsedFact: start 15:22:42 "script-file-time" for events 1..227, 18:16:23 "final" at 228.
+// (2) In a replay run.script goes out first (keyed 15:22:42) and run.launched 227th (keyed by the journal file time 18:21:10),
+//     so the replay starts with a gap and "no journal line seen yet".
+// (3) The replay endpoint's run id is first tried as a path relative to the process directory, then under the root.
+// Contract §1 (schedule, lookup) and §2 (run startedAt order) were changed for this before the node.
+export default {
+  code: 'RT1',
+  name: 'run start and replay lookup',
+  risk: 'high',
+  owns: [
+    'src/model/reduce.mjs', 'src/source/replay.mjs', 'bin/wfviz.mjs',
+    'test/model/', 'test/source/replay.test.mjs', 'test/source/claude-fs-replay.test.mjs',
+    // shared tests that read fixtures through the model or start the launcher: change only an assertion this node makes stale, same intent, say which
+    'test/server/bin.test.mjs', 'test/server/replay.test.mjs', 'test/server/replay-endpoint.test.mjs', 'test/server/live.test.mjs', 'test/integration/',
+  ],
+  spec: `Model, replay source and launcher. web/ and src/server/ are not yours (another node edits web/ in the same run). wfviz is universal (AGENTS.md hard rules); never invent a value: every time shown keeps its provenance and method.
+Read docs/contract.md §1 "Replay" (schedule key and lookup sentences are new) and §2 (the comment on run startedAt is new).
+1. Run start (src/model/reduce.mjs, run-level startedAt near "script-file-time"): order becomes final file's startTime (final); else the earliest agent start (inferred, method "earliest-agent-start"); else the script file time (inferred, "script-file-time"); else unknown with a reason that names all three. Before changing, measure on every local run under ~/.claude/projects (read-only; script under evidence/tmp/): for runs with a final file, compare final startTime with (a) script file time and (b) earliest agent start, and record in the guide and your note how many runs each is within 60 s of the final start, and the largest error of each. If the earliest agent start is not the better estimate on real runs, stop and say so in your note instead of changing the rule. Check what the earliest agent start is made of when an agent has only a journal file time (agent startedAt method "journal-event-ts", coarse): such a value must not win over a transcript-record start of another agent, and when it is all there is, the method string says it is coarse.
+2. Everything derived from the run start follows without special cases: check durationMs / elapsed inputs, phase times, order, the run list sort, and say in your note what changed on the fixtures.
+3. Replay schedule (src/source/replay.mjs buildSchedule / scheduleKey): run.script and run.launched are keyed by the smallest key among the run's other events (if there are none, their own ts), so they go out first, in reader order, with no wait before the next event beyond the normal rule. Event values are unchanged (ts stays the file time). Update the header comment of the file ("Consequence of the literal rule").
+4. Lookup (src/source/replay.mjs locateRun + bin/wfviz.mjs realReplays): add an option (name it clearly, e.g. idOnly: true) with which the target is only ever a run id under the root: a target with a path separator, "." or ".." is refused with a ReplayLookupError, and no stat relative to the process directory is made. The launcher's replays (prepare and open) use it. The command line --replay <target> keeps today's behaviour (a run directory or an id). Test: with cwd set to a directory that contains <session>/subagents/workflows/wf_x reachable as a relative path equal to the id, the endpoint lookup still answers from the root (or 404), never from cwd.
+5. Tests: reduce tests for the new order (script time hours before the first agent record → start is the agent's; no agent start → script time; final wins); a replay over the saved run in fixtures: the first emitted events are run.script and run.launched, and after every event from the first agent record on, reduce gives a start that is not earlier than the first agent record (no script-file-time once an agent start exists); schedule keys; lookup option. Update test/model/reduce.test.mjs:57 and any other assertion of the old order (same intent).
+Keep every other test green (npm test: exit 0, fail 0, skipped 0, todo 0); test/integration/universal.test.mjs green.`,
+  lensA: 'model and contract: the new startedAt order and its provenance / method strings; the measurement on real runs (redo it yourself, read-only, on ~/.claude/projects: show a run where the new rule is worse than the old, if any); coarse journal file times must not pass as exact; effects on duration, phases, order and run list sort; nothing invented; no field or label of this project hard-coded.',
+  lensB: 'replay source and launcher: schedule keys of run.script / run.launched (first, values unchanged, ties in reader order, runs with no transcript events, events with no finite ts), delays not changed for other events; lookup option (separator, dot names, cwd never consulted; CLI --replay unchanged); drive a real replay in node (createReplaySource + createStore, speed 100) over wf_3e37ce7f-482 and report start / status after events 1, 2, 3 and the last; start wfviz with --no-open on port 0 and check GET /api/runs/<id>/replay still gives hello → events → end with the same final Run as GET /api/runs/<id>. Do not use the browser pane. Write nothing to disk except under evidence/tmp/ and OS temp dirs; stop only processes you started, by PID.',
+};
