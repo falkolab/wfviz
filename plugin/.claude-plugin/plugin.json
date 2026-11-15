@@ -2,6 +2,12 @@
   "name": "wfviz",
   "description": "Local read-only visualizer for Claude Code Dynamic Workflow runs",
   "version": "0.1.0",
+  "author": {
+    "name": "Andrey Tkachenko"
+  },
+  "homepage": "https://falkolab.github.io/wfviz/",
+  "repository": "https://github.com/falkolab/wfviz",
+  "license": "MIT",
   "userConfig": {
     "trackingHint": {
       "type": "boolean",

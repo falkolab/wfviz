@@ -6,8 +6,8 @@ few optional conventions for writing a Workflow script (agent labels, phases, re
 totals, log lines). A script that follows them lets wfviz show the run in more detail. A script that
 follows none of them still runs the same and still shows up in wfviz.
 
-The note is advisory. It blocks nothing and changes no action, and the plugin cannot promise that
-Claude follows it (see "What Claude does with the note" below).
+The note is advisory: it never blocks or changes anything, and the plugin cannot promise that Claude
+follows it (see "What Claude does with the note" below).
 
 ## What it does
 
@@ -49,69 +49,51 @@ The hooks page says to check delivery in the debug log.
 
 ## Install
 
-These are the commands the Claude Code plugin pages give. Run them yourself; nothing here runs them.
-
-Try it for one session, from the folder that holds `plugin/`:
+From GitHub, in a Claude Code session:
 
 ```
-claude --plugin-dir ./plugin
-```
-
-Install it. A plugin installs from a marketplace, which is a directory or repository with a
-`.claude-plugin/marketplace.json`. This folder has none: a marketplace needs an owner name that no
-source here gives, so that file is for you to write. With a marketplace you have, in a session:
-
-```
-/plugin marketplace add ./my-marketplace
-/plugin install wfviz@my-marketplace
+/plugin marketplace add falkolab/wfviz
+/plugin install wfviz@falkolab
 ```
 
 or from your shell:
 
 ```
-claude plugin install wfviz@my-marketplace
+claude plugin marketplace add falkolab/wfviz
+claude plugin install wfviz@falkolab
 ```
 
-`my-marketplace` is a placeholder for the name your marketplace registered under.
+From a local clone, add the clone's folder instead: `claude plugin marketplace add ./wfviz`. To try the
+plugin for one session without installing it, run from the clone's folder:
+
+```
+claude --plugin-dir ./plugin
+```
+
+The note takes effect in the next new session.
 
 ## Off switch
 
-The plugin declares a user option, `trackingHint` (boolean, default on), in the `userConfig` of
-`.claude-plugin/plugin.json`. Claude Code passes it to the hook process as the environment variable
-`CLAUDE_PLUGIN_OPTION_TRACKINGHINT`. When its value is `off`, `0` or `false` (any letter case), the
-script prints nothing and exits 0. Unset, empty or any other value counts as on. The plugin pages do
-not say which string Claude Code exports for a boolean option, so these three are the values the
-script treats as off.
+The plugin has one option, `trackingHint` (boolean, default on). Claude Code passes it to the hook as the
+environment variable `CLAUDE_PLUGIN_OPTION_TRACKINGHINT`. When its value is `off`, `0` or `false` (any
+letter case), the script prints nothing and exits 0; anything else counts as on.
 
-Set the option in any of these ways. Claude Code asks for a restart to apply a saved option.
+Set it in any of these ways; Claude Code asks for a restart to apply a saved option.
 
-- in a session: `/plugin configure wfviz@my-marketplace` opens the options dialog; or `/plugin`, the
-  Installed tab, then Configure options for wfviz
-- at install, from your shell: `claude plugin install wfviz@my-marketplace --config trackingHint=false`
-- after install, from your shell (Claude Code 2.1.285 or later), by piping a JSON object of option
-  keys and single-line string values to `--values-stdin`:
+- in a session: `/plugin configure wfviz@falkolab`, or `/plugin`, the Installed tab, then Configure
+  options for wfviz;
+- at install: `claude plugin install wfviz@falkolab --config trackingHint=false`;
+- after install (Claude Code 2.1.285 or later):
 
 ```
-echo '{"trackingHint": "false"}' | claude plugin configure wfviz@my-marketplace --values-stdin
+echo '{"trackingHint": "false"}' | claude plugin configure wfviz@falkolab --values-stdin
 ```
 
-Run without `--values-stdin`, `claude plugin configure` only lists the plugin's options and whether
-each is set: it saves nothing, so it does not turn the hint off. With `--values-stdin` it checks each
-value against the option's declared type and, if one fails, saves nothing and exits 1. The plugin
-pages show no example with a boolean option, so read the value back to be sure. With `--json` the
-output includes the saved value of every option that is not sensitive; look for `trackingHint`:
+Without `--values-stdin`, `claude plugin configure` only lists the options and saves nothing. To read
+the saved value back:
 
 ```
-claude plugin configure wfviz@my-marketplace --json
+claude plugin configure wfviz@falkolab --json
 ```
 
-The plugin has no environment variable of its own for this switch. To turn off the whole plugin
-instead, run `claude plugin disable wfviz@my-marketplace`.
-
-## Check
-
-`claude plugin validate ./plugin` checks the manifest. It reports no error. It warns that the manifest
-has no author, no license and no icon: no source here gives those values, so they are left out.
-
-Not checked from here: that Claude Code fires the hook on a new session, and that Claude uses the note
-as context. That needs a session with the plugin loaded.
+To turn off the whole plugin: `claude plugin disable wfviz@falkolab`.

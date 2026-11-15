@@ -39,10 +39,15 @@ test('the file list ignores OS metadata (.DS_Store and the like) but still shows
   }
 });
 
-test('manifest: only name, description, version and the trackingHint option; nothing invented', () => {
+test('manifest: name, description, version, the trackingHint option and the publication fields; nothing invented', () => {
   const manifest = readJson('.claude-plugin', 'plugin.json');
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  assert.deepEqual(Object.keys(manifest).sort(), ['description', 'name', 'userConfig', 'version']);
+  assert.deepEqual(Object.keys(manifest).sort(), ['author', 'description', 'homepage', 'license', 'name', 'repository', 'userConfig', 'version']);
+  // author, license and links were given by the user when the project was published (2026-11-15); they follow package.json
+  assert.deepEqual(manifest.author, { name: 'Andrey Tkachenko' });
+  assert.equal(manifest.license, pkg.license);
+  assert.equal(manifest.homepage, pkg.homepage);
+  assert.equal(manifest.repository, 'https://github.com/falkolab/wfviz');
   assert.equal(manifest.name, 'wfviz');
   assert.equal(manifest.description, pkg.description);
   assert.equal(manifest.version, pkg.version);
@@ -182,9 +187,9 @@ test('README: what it does, install commands as the plugin pages give them, off 
   const readme = readText('README.md');
   for (const needle of [
     'claude --plugin-dir ./plugin',
-    '/plugin marketplace add ./my-marketplace',
-    '/plugin install wfviz@my-marketplace',
-    'claude plugin install wfviz@my-marketplace',
+    '/plugin marketplace add falkolab/wfviz',
+    '/plugin install wfviz@falkolab',
+    'claude plugin install wfviz@falkolab',
     '--config trackingHint=false',
     'trackingHint',
     'CLAUDE_PLUGIN_OPTION_TRACKINGHINT',
@@ -208,7 +213,7 @@ test('README: what it does, install commands as the plugin pages give them, off 
 test('README off switch: every way to set trackingHint is one the plugin pages give and that saves', () => {
   const readme = readText('README.md');
   // In a session: the documented dialog command.
-  assert.ok(readme.includes('/plugin configure wfviz@my-marketplace'));
+  assert.ok(readme.includes('/plugin configure wfviz@falkolab'));
   // From the shell: the command is named only with a flag, on the same line.
   const shellLines = readme.split('\n').filter((l) => l.includes('claude plugin configure'));
   assert.ok(shellLines.length >= 2, 'the shell command is shown');
@@ -263,6 +268,6 @@ test('README shows the text once, states what the hooks page says about addition
   ]) {
     assert.ok(!readme.includes(gone), `README no longer says: ${gone}`);
   }
-  // And it does not claim the delivery was checked.
-  assert.ok(/Not checked from here/.test(readme));
+  // It names the debug log as the way to check delivery (asserted above) and claims no check of its own.
+  assert.ok(!/delivery (was|is) (checked|verified)/i.test(readme));
 });

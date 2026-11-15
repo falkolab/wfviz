@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "falkolab",
+  "description": "Plugins by Andrey Tkachenko",
+  "owner": { "name": "Andrey Tkachenko" },
+  "plugins": [
+    {
+      "name": "wfviz",
+      "description": "Gives new sessions a short note on optional conventions that let wfviz show Dynamic Workflow runs in more detail",
+      "author": { "name": "Andrey Tkachenko" },
+      "source": "./plugin",
+      "homepage": "https://falkolab.github.io/wfviz/"
+    }
+  ]
+}
