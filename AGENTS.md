@@ -46,7 +46,7 @@ Layers: `src/source/` (events from files) → `src/model/` (normalised Run with 
 - Write only the files your node owns. Two agents never edit the same file at once.
 - Never run `git stash`, `git reset` or destructive commands. Workflow agents do not commit;
   the orchestrator commits after every implement/fix step (keeps a baseline).
-- No global config changes, no plugin installs. Publishing goes only to github.com/falkolab/wfviz `main` and only what the user approved (see progress.md "Repository"); never push `archive/local-history`.
+- No global config changes and no plugin installs unless the user asks (the user installed `wfviz@falkolab` on this host, 2026-11-15). Publishing goes only to github.com/falkolab/wfviz `main` and only what the user approved (see progress.md "Repository"); never push `archive/local-history`.
 - ES modules, Node ≥ 20, zero npm dependencies.
 
 ## Development method (graph of bounded nodes)

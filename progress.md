@@ -24,6 +24,10 @@ local branch `archive/local-history` (never pushed). Kept local and git-ignored,
 a text search of tracked files (`git grep -I -i -w` with the employer's short name) must find nothing. SSH to GitHub is refused in agent shells; push with
 `git -c credential.helper='!gh auth git-credential' push https://github.com/falkolab/wfviz.git main`.
 
+Plugin: marketplace `falkolab` is `.claude-plugin/marketplace.json` in this repository; `wfviz@falkolab` was installed
+on this host (user scope) from GitHub on 2026-11-15 at the user's request, and a fresh headless session confirmed it
+receives the note. Option `trackingHint` is unset (counts as on).
+
 ## Decisions in force
 
 - Judge: codex cli, command given by the user per run, only in workflow args. The Codex workspace
