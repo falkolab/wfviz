@@ -2330,3 +2330,42 @@ test('page code: the replay adds no timer and no document listener, keeps localS
   // the replay stream's frames never go to the run list
   assert.doesNotMatch(code, /state\.runs|mergeRun|summaryOfRun/);
 });
+
+// ---- layout memory (web-layout-memory.test.mjs has the rest): a replay on show and the run's remembered rows ----------------------------
+
+test('layout memory: a replay on show neither reads nor writes what the page remembers of the real run (rows, tests card, weak switch); Stop gives the real view back as remembered', async () => {
+  // the real run has a unit of the same name as the replayed one (U), so a row kept open by mistake would show
+  const page = await realPage({ run: run([agent('r1', 'real:U'), agent('r2', 'real:Z')], { name: reg('the real run') }) });
+  const key = 'wfviz.runState';
+  const toggles = () => page.doc.querySelectorAll('.hist-toggle');
+  const openUnits = () => toggles().filter((t) => t.attrs.get('aria-expanded') === 'true').map((t) => t.attrs.get('data-unit'));
+  const toggle = (unit) => toggles().find((t) => t.attrs.get('data-unit') === unit);
+  try {
+    await page.click(toggle('U'));
+    assert.deepEqual(JSON.parse(page.storage[key]), [['wf_x', { expanded: ['U'], tests: false, weak: false }]], 'the real run keeps its opened row');
+    const kept = page.storage[key];
+
+    await page.click(page.el('#replay-go'));
+    await page.send(HELLO, ['event', uev(1)], ['run', rep(2)]);
+    assert.equal(ctl(page).mark, true, 'the replay is on show');
+    assert.deepEqual(toggles().map((t) => t.attrs.get('data-unit')).sort(), ['U', 'V'], 'the replayed Run\'s rows');
+    assert.deepEqual(openUnits(), [], 'the replay starts with every row closed: it does not read the real run\'s memory');
+
+    await page.click(toggle('V'));
+    assert.deepEqual(openUnits(), ['V'], 'a row opens in the replay as in any view');
+    const weak = page.el('#weak-toggle');
+    weak.checked = true;
+    weak.onchange({ target: weak });
+    await page.flush();
+    assert.equal(page.storage[key], kept, 'nothing of the replay is written to the memory of the run');
+    assert.equal(page.storage['wfviz.lastRun'], 'wf_x');
+
+    await page.click(page.el('#replay-stop'));
+    assert.equal(ctl(page).mark, false, 'back in the real view');
+    assert.deepEqual(openUnits(), ['U'], 'the real run\'s row is open again, as remembered; the replay\'s row is gone');
+    assert.equal(page.el('#weak-toggle').checked, false, 'the switch shows the real run\'s state, not the one ticked in the replay');
+    assert.equal(page.storage[key], kept);
+  } finally {
+    page.restore();
+  }
+});

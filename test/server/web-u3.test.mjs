@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   CENTER_MIN, HANDLE_WIDTH, LAYOUT_DEFAULTS, appendItems, attrDiff, barEnd, captionOf, clampLayout, clearList, clockTick, countsFromNow, createListState,
-  createNode, createSpecEl, dedupeKeys, dragLayout, dropItems, elapsedFact, entryKeys, fallbackRows, findingCounts, groupOf, keyOf, latestRecorded, matrixCell,
+  createNode, createSpecEl, dedupeKeys, defaultColumns, dragLayout, dropItems, elapsedFact, entryKeys, fallbackRows, findingCounts, groupOf, keyOf, latestRecorded, matrixCell,
   matrixModel, matrixRows, notParsedNote, parseStoredSize, patchList, planPatch, rowTags, sameJson, specOf, testRows, unitState, updateNode, updateSpecEl,
 } from '../../web/lib.js';
 import { test } from './helpers.mjs';
@@ -315,9 +315,12 @@ test('createSpecEl: attributes are set as raw values (a quote or a tag in a labe
 
 const VP = { width: 1400, height: 800 };
 
+// what nothing wanted gives in a window: the side columns' default for that width (it depends on it), the log's fixed one
+const DEFAULTS_AT = (vp) => ({ ...defaultColumns(vp.width), log: LAYOUT_DEFAULTS.log });
+
 test('layout: the defaults apply when nothing is wanted; a column is 160 px .. half the width, the log 80 px .. 60% of the height', () => {
-  assert.deepEqual(clampLayout({}, VP), LAYOUT_DEFAULTS);
-  assert.deepEqual(clampLayout(undefined, VP), LAYOUT_DEFAULTS);
+  assert.deepEqual(clampLayout({}, VP), DEFAULTS_AT(VP));
+  assert.deepEqual(clampLayout(undefined, VP), DEFAULTS_AT(VP));
   assert.equal(clampLayout({ left: 50 }, VP).left, 160);
   assert.equal(clampLayout({ left: 160 }, VP).left, 160);
   assert.equal(clampLayout({ left: 9999, right: 160 }, VP).left, 700, 'half of 1400');
@@ -330,7 +333,7 @@ test('layout: the defaults apply when nothing is wanted; a column is 160 px .. h
 
 test('layout: a wish that is not a finite number is the default', () => {
   for (const bad of [NaN, Infinity, -Infinity, 'x', null, undefined, {}]) {
-    assert.deepEqual(clampLayout({ left: bad, right: bad, log: bad }, VP), LAYOUT_DEFAULTS, String(bad));
+    assert.deepEqual(clampLayout({ left: bad, right: bad, log: bad }, VP), DEFAULTS_AT(VP), String(bad));
   }
 });
 

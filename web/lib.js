@@ -1072,7 +1072,8 @@ export function mergeRunList(fetched, current, touched = new Set()) {
 // ---------- run history: the filters of the run picker, kept in location.hash ----------
 
 // The filters of the picker: range ('24h' by default, or 'all'), project, status, from and to (YYYY-MM-DD, local days, both ends
-// included), q (the text typed in the search field: name and id). The state is the URL hash and nothing else (nothing is stored).
+// included), q (the text typed in the search field: name and id). The hash is the filters' address form; the page also keeps the last
+// filters, as this same text, in the browser (initialFilter: they apply when the address has no hash).
 //   #range=all&project=<dir name>&status=<text>&from=2026-11-01&to=2026-11-10&q=<text>
 // Defaults are left out; an empty hash is "the last 24 h, nothing else set". Anything that does not parse is the default.
 export const HASH_VALUE_MAX = 200;
@@ -1172,6 +1173,81 @@ export function sanitizePickerFilter(filter, options) {
   if (f.project !== null && !(options?.projects ?? []).includes(f.project)) { f.project = null; changed = true; }
   if (f.status !== null && !(options?.statuses ?? []).includes(f.status)) { f.status = null; changed = true; }
   return { filter: f, changed };
+}
+
+// ---------- what the page remembers between visits (the browser's own storage; app.js reads and writes it, every access in try/catch) ----------
+
+// Every key the page stores, without the page's prefix (app.js localGet/localSet add it): what "Reset layout" removes, and nothing else.
+// The three layout sizes, the log's collapsed state, the view, the replay speed, the tracking notice's close, the last run, the filters
+// and the per-run memory. A key that app.js starts to store is added here (a test reads app.js for every key it uses).
+export const STORED_KEYS = ['layout.left', 'layout.right', 'layout.log', 'logCollapsed', 'view', 'replay.speed', 'hint.closed', 'lastRun', 'filters', 'runState'];
+export const RESET_CONFIRM_TEXT = 'Reset layout? This clears the saved sizes, the last run, the filters and the other remembered settings of wfviz in this browser, then reloads the page.';
+export const STORED_ID_MAX = 200;
+export const STORED_FILTER_MAX = 4000;
+export const RUN_MEMORY_MAX = 50;
+export const RUN_MEMORY_UNITS_MAX = 100;
+
+// A stored run id: a text of 1 .. STORED_ID_MAX characters, else null. It is data (compared with the ids of the list), never a selector.
+export const parseLastRun = (text) => (typeof text === 'string' && text.length > 0 && text.length <= STORED_ID_MAX ? text : null);
+
+// The filter the page starts with. Any address hash (anything after the "#") wins whole, with no key taken from the stored text. With
+// no hash the stored text (what formatPickerHash gave, read back by parsePickerHash only) is the filter, `fromStorage` true so that the
+// caller writes it to the address. A stored value that is not a text of a sane length is no value. Whatever does not parse is the default.
+export function initialFilter(hash, stored) {
+  const fromHash = typeof hash === 'string' && hash.replace(/^#/, '') !== '';
+  if (!fromHash && typeof stored === 'string' && stored.length <= STORED_FILTER_MAX) return { filter: parsePickerHash(stored), fromStorage: true };
+  return { filter: parsePickerHash(hash), fromStorage: false };
+}
+
+// What is remembered of a run: the matrix rows opened (unit names), the tests card opened, the weak-edges switch. The memory of the runs
+// is an array of [runId, state] with the most recently changed run last (never an object keyed by the id: any text is an id), at most
+// RUN_MEMORY_MAX runs, and a run whose state is the default has no entry.
+const cleanRunMemory = (x) => {
+  const src = isObj(x) ? x : {};
+  const expanded = [];
+  if (Array.isArray(src.expanded)) {
+    for (const u of src.expanded) {
+      if (expanded.length >= RUN_MEMORY_UNITS_MAX) break;
+      if (typeof u === 'string' && u.length <= STORED_ID_MAX && !expanded.includes(u)) expanded.push(u);
+    }
+  }
+  return { expanded, tests: src.tests === true, weak: src.weak === true };
+};
+const isDefaultRunMemory = (m) => m.expanded.length === 0 && !m.tests && !m.weak;
+// entries of unknown shape -> clean entries: a bad entry is dropped, an id that comes again keeps its last state (and its last place),
+// an entry equal to the default is dropped, only the newest RUN_MEMORY_MAX stay
+function cleanRunEntries(entries) {
+  const byId = new Map();
+  for (const e of Array.isArray(entries) ? entries : []) {
+    if (!Array.isArray(e) || parseLastRun(e[0]) === null) continue;
+    byId.delete(e[0]);
+    byId.set(e[0], cleanRunMemory(e[1]));
+  }
+  return [...byId].filter(([, m]) => !isDefaultRunMemory(m)).slice(-RUN_MEMORY_MAX);
+}
+
+// A stored text -> clean entries ([] for anything that is not the array this module writes: no text, bad JSON, an object, a number).
+export function parseRunMemory(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { return []; }
+  return cleanRunEntries(data);
+}
+
+// The remembered state of one run (a fresh object; the default for a run with no entry).
+export function runMemoryOf(entries, id) {
+  const hit = cleanRunEntries(entries).find(([k]) => k === id);
+  return hit ? cleanRunMemory(hit[1]) : cleanRunMemory(null);
+}
+
+// The entries after the user changed `patch` ({ expanded, tests, weak }, any of them) in run `id`: the changed run moves to the end, a
+// state equal to the default removes the entry, the oldest entries beyond RUN_MEMORY_MAX are dropped. An id that is not a sane text
+// changes nothing. The input is not changed.
+export function updateRunMemory(entries, id, patch) {
+  const list = cleanRunEntries(entries);
+  if (parseLastRun(id) === null) return list;
+  const next = cleanRunMemory({ ...runMemoryOf(list, id), ...(isObj(patch) ? patch : {}) });
+  const rest = list.filter(([k]) => k !== id);
+  return (isDefaultRunMemory(next) ? rest : [...rest, [id, next]]).slice(-RUN_MEMORY_MAX);
 }
 
 // What the picker says about a run that is only listed, while its load is out, and when it failed.
@@ -1593,7 +1669,9 @@ const LOG_MAX_RATIO = 0.6;
 // The centre column keeps at least this much, so two columns at half the width each cannot leave no centre.
 export const CENTER_MIN = 240;
 export const HANDLE_WIDTH = 8;
-export const LAYOUT_DEFAULTS = { left: 240, right: 300, log: 190 };
+// The wide defaults of the side columns (twice the first ones, a ratio of 4:5) and the log height. The columns take these only when the
+// centre column keeps half of the width with them; otherwise defaultColumns() shrinks both in the same ratio.
+export const LAYOUT_DEFAULTS = { left: 480, right: 600, log: 190 };
 
 const isSize = (x) => typeof x === 'number' && Number.isFinite(x) && x > 0;
 // a stored text -> a size, or null for anything that is not a positive finite number
@@ -1606,15 +1684,31 @@ export function parseStoredSize(text) {
 // min wins over max when the room is smaller than the minimum
 const between = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 
+// The default widths of the two side columns in a grid of `width` (the width viewport() in app.js gives: the page area inside the grid's
+// padding, handles included). The wide defaults of LAYOUT_DEFAULTS (480 and 600) when the centre column keeps at least half of the width with
+// them, else both shrink together, in the same 4:5 ratio, so that the centre is that half. The two 8 px handles are not part of the
+// centre, so they come off the half too: the centre column itself (the grid's middle track) is never narrower than half of the width.
+// The rule binds below a width of 2 * (480 + 600 + 2 * HANDLE_WIDTH) = 2192. Whole pixels, rounded down. A width that is not a positive
+// number gives 0 and 0 (clampLayout then holds each column to its minimum). Only the default: a stored or dragged width does not come here.
+export function defaultColumns(width) {
+  const w = isSize(width) ? width : 0;
+  const { left, right } = LAYOUT_DEFAULTS;
+  const sides = w / 2 - 2 * HANDLE_WIDTH; // what the two columns may take, the centre keeping half of the width
+  if (left + right <= sides) return { left, right };
+  const room = Math.max(0, sides);
+  return { left: Math.floor((left * room) / (left + right)), right: Math.floor((right * room) / (left + right)) };
+}
+
 // The sizes to show for the wanted ones in a window of { width, height }: a column is 160 px .. half the width, the log is
 // 80 px .. 60% of the height, and the two columns together leave the centre CENTER_MIN. A missing or bad wanted size is the
-// default. When both columns do not fit, the column named by `prefer` (the one being dragged) gives way first; without
+// default (a side column's default depends on the width: defaultColumns). When both columns do not fit, the column named by `prefer` (the one being dragged) gives way first; without
 // `prefer` both shrink in proportion.
 export function clampLayout(wanted, viewport, prefer = null) {
   const w = isSize(viewport?.width) ? viewport.width : 0;
   const h = isSize(viewport?.height) ? viewport.height : 0;
   // a number that is not finite (NaN, Infinity) or not a number is no wish: the default. A finite one, even negative, is clamped.
-  const pick = (k) => (typeof wanted?.[k] === 'number' && Number.isFinite(wanted[k]) ? wanted[k] : LAYOUT_DEFAULTS[k]);
+  const defaults = { ...defaultColumns(w), log: LAYOUT_DEFAULTS.log };
+  const pick = (k) => (typeof wanted?.[k] === 'number' && Number.isFinite(wanted[k]) ? wanted[k] : defaults[k]);
   const colMax = Math.floor(w * COLUMN_MAX_RATIO);
   let left = between(pick('left'), COLUMN_MIN, colMax);
   let right = between(pick('right'), COLUMN_MIN, colMax);
@@ -1644,6 +1738,20 @@ export function dragLayout(wanted, kind, start, delta, viewport) {
   else if (kind === 'log') raw.log = start - delta.dy;
   else return clampLayout(wanted, viewport);
   return clampLayout(raw, viewport, kind);
+}
+
+// The layout the page wants after a drag moved `kind` (`sized` is what dragLayout gave, `wanted` what was wanted when the press came). Only
+// what the user chose is wanted: the dragged size; a size that was already wanted (it takes the width on show, so a column that is shown
+// narrower than its saved size does not snap back); a size the drag itself pushed off its default (a column squeezed by the drag keeps the
+// width it has now). Every other size is a default that follows the window, so it is left out and a window that changes later gives it the
+// new default. Never the whole of `sized`.
+export function wantedAfterDrag(wanted, sized, kind, viewport) {
+  const base = clampLayout({}, viewport);
+  const out = {};
+  for (const k of Object.keys(sized)) {
+    if (k === kind || Object.hasOwn(wanted ?? {}, k) || sized[k] !== base[k]) out[k] = sized[k];
+  }
+  return out;
 }
 
 // ---------- the matrix: role x unit, and the fallback rows (docs/contract.md section 2) ----------

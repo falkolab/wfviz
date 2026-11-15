@@ -126,7 +126,10 @@ body.resizing { user-select: none; -webkit-user-select: none; }
 .step.done { color: var(--done); border-color: #1f4d3c; }
 .step.interrupted { color: var(--warn); border-color: var(--warn); border-style: dashed; }
 .step .n { opacity: .6; margin-right: 4px; }
-.grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: var(--left-w, 240px) 8px minmax(0, 1fr) 8px var(--right-w, 300px); grid-template-rows: minmax(0, 1fr); padding: 10px 14px 0; }
+/* the side columns are 480 and 600 px (4:5), less when that would leave the centre under half of the width: both shrink in the same ratio.
+   app.js sets --left-w and --right-w (lib.js defaultColumns) when it has run; until then the fallbacks give the same result: the centre
+   keeps half, each side is 4/9 and 5/9 of the half less the two 8 px handles (22.2222% - 7.1111 px, 27.7778% - 8.8889 px) */
+.grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: var(--left-w, min(480px, calc(22.2222% - 7.1111px))) 8px minmax(0, 1fr) 8px var(--right-w, min(600px, calc(27.7778% - 8.8889px))); grid-template-rows: minmax(0, 1fr); padding: 10px 14px 0; }
 /* a column scrolls inside itself in both directions: what does not fit (a matrix of many roles in a narrow centre) is reached by
    scrolling, never cut off */
 .col { min-height: 0; min-width: 0; overflow-x: auto; overflow-y: auto; scrollbar-gutter: stable; }
@@ -400,6 +403,9 @@ svg.edges { position: absolute; inset: 0; pointer-events: none; overflow: visibl
 .hint-copy:hover, .hint-open:hover { border-color: var(--muted); }
 /* the header button is smaller than the copy button, so that it takes no more of the header's row than it must */
 .hint-open { flex: none; position: relative; padding: 2px 8px; font-size: 11px; }
+/* the header button that forgets what the page remembers: the same small size, quieter than the notice's button */
+.reset-open { flex: none; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font: inherit; font-size: 11px; cursor: pointer; }
+.reset-open:hover { color: var(--text); border-color: var(--muted); }
 /* the warning sign (a yellow triangle with a "!") in the header button and in the title of the notice: a mark only, the text stays the
    name. The triangle is --warn, the "!" is the page background. The negative margins keep it from making the line it stands in taller. */
 .icon.warn { flex: none; width: 14px; height: 14px; margin: -2px 5px -2px 0; vertical-align: -2px; }

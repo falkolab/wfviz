@@ -1286,13 +1286,15 @@ test('the page: a result of a run\'s own field hides the tracking notice (it cov
     assert.equal(storage[HINT_KEY], '1', 'the user\'s own close is remembered');
     assert.deepEqual(hintKeys(page), [HINT_KEY]);
     // with it closed by the user already, a run-level hit writes nothing and changes nothing
-    const before = JSON.stringify(storage);
+    // (only the notice's own key is compared: a click on a result opens a run, and the page then keeps that run as the last one, which is not the notice)
+    const hintStored = () => JSON.stringify(hintKeys(page).map((k) => [k, page.storage[k]]));
+    const before = hintStored();
     await page.click(page.el('#search-input'));
     page.el('#search-input').dispatch('focus');
     await page.click(rowsOf(page)[1]);
     assert.equal(page.el('#search-hit').hidden, false);
     assert.equal(hint.hidden, true);
-    assert.equal(JSON.stringify(storage), before, 'nothing written');
+    assert.equal(hintStored(), before, 'nothing written to the notice\'s key');
     assert.equal(opener.getAttribute('aria-expanded'), 'false');
   } finally {
     page.restore();

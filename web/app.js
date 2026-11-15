@@ -42,7 +42,7 @@ import {
   relatedIds, hoverInfo, lastEventOf, splitError, runOption, elapsedFact, fetchErrorText, backlogNotice, modeInfo,
   slotVar, orderOfAppearance, runStatusClass, pickerRow, filterRunRows, summaryOfRun, mergeRun, mergeRunList, scrollToShow,
   morphHtml, keyOf, dedupeKeys, sameJson, specOf, groupOf, createSpecEl, updateSpecEl, createNode, updateNode, entryKeys, createListState, patchList, appendItems, prependItems, dropItems, clearList,
-  matrixModel, findingCounts, clockTick, testsView, clampLayout, dragLayout, parseStoredSize,
+  matrixModel, findingCounts, clockTick, testsView, clampLayout, dragLayout, wantedAfterDrag, parseStoredSize,
   scopeSplit, runItemLabel, runResultView,
 } from './lib.js';
 import { TRACKING_PROMPT, hintInitiallyOpen, copyPath, copyLabel, focusQuietly, selectAll } from './lib.js';
@@ -60,6 +60,9 @@ import {
   parseReplaySpeed, replayUrl, replayControl, replayFailure, replayHelloProblem, replayRunProblem, replayCutText, createSseParser, readReplayFrame,
   createReplayQueue, REPLAY_WAITING, REPLAY_SPEEDS,
 } from './lib.js';
+import {
+  STORED_KEYS, RESET_CONFIRM_TEXT, parseLastRun, initialFilter, defaultPickerFilter, parseRunMemory, runMemoryOf, updateRunMemory,
+} from './lib.js';
 
 const $ = (s) => document.querySelector(s);
 const FLASH_MS = 1500;
@@ -74,6 +77,8 @@ const SIZES = {
   log: { prop: '--log-h', key: 'layout.log' },
 };
 
+// the filters the page starts with: the address hash, else the filters of the last visit (see lib.js initialFilter)
+const start = initialFilter(readHash(), localGet('filters'));
 const state = {
   runs: [], runsTouched: new Set(), run: null, runId: null, runsLoaded: false, mode: null, view: localGet('view') || 'matrix', weak: false,
   drawn: new Set(), drawerAgent: null, drawerResult: false,
@@ -87,9 +92,10 @@ const state = {
   // run ids of the rows shown and the id each row has for the input's aria-activedescendant
   // `ctl`: what each filter control was last made to show (the control keeps what the user is typing until the filter itself changes)
   picker: { open: false, active: null, shown: [], optIds: new Map(), loading: new Set(), loadError: null, ctl: {} },
-  // the picker's filters (run history): range, project, status, from, to and the search text q. Their only home is location.hash
-  // (read at the start and on hashchange, written with history.replaceState); nothing is stored. See lib.js parsePickerHash.
-  filter: parsePickerHash(readHash()),
+  // the picker's filters (run history): range, project, status, from, to and the search text q. The address is their form: the hash is read
+  // at the start (else the filters of the last visit are taken and written to it) and on hashchange, and written with history.replaceState;
+  // a change the user makes is also kept in the browser (storeFilter). See lib.js parsePickerHash and initialFilter.
+  filter: start.filter,
   // the price list of GET /api/prices (usage and cost): { phase: 'idle' | 'loading' | 'ok' | 'failed', data, reason }. It is asked for once per
   // page, when a cost is first shown (see ensurePrices); a failure stays (no retry), the reason is the server's.
   prices: { phase: 'idle', data: null, reason: null },
@@ -100,6 +106,7 @@ const state = {
   // every render of that drawer, until the drawer is scrolled by anything but the page (see applyDrawerTarget)
   drawerTarget: null,
 };
+if (start.fromStorage) writeHash(); // the stored filters become the address; an address that had its own hash is left as it is
 
 function readHash() { try { return location.hash; } catch { return ''; } }
 
@@ -235,12 +242,15 @@ async function loadRuns() {
   state.runsLoaded = true;
   // a project or status of the hash that the list does not have is reset to "all" (and the hash rewritten): checked now that the list is here
   const checked = sanitizePickerFilter(state.filter, pickerFilterOptions(state.runs));
-  if (checked.changed) { state.filter = checked.filter; writeHash(); }
+  if (checked.changed) { state.filter = checked.filter; writeHash(); if (start.fromStorage) storeFilter(); }
   renderRunPicker();
-  // the first page opens a run that is loaded (a running one, else the first); a run that is only listed opens on a click, never unasked
+  // the first page opens the run of the last visit when the list still has it (a run that is gone is ignored, silently, and it beats the
+  // running one); else a run that is loaded (a running one, else the first). Any other run that is only listed opens on a click.
   const isLoadedItem = (r) => r.loaded !== false;
   if (!state.runId && state.runs.length) {
-    const open = state.runs.find((r) => isLoadedItem(r) && val(r.status) === 'running') || state.runs.find(isLoadedItem);
+    const remembered = parseLastRun(localGet('lastRun'));
+    const open = state.runs.find((r) => remembered !== null && r.id === remembered)
+      || state.runs.find((r) => isLoadedItem(r) && val(r.status) === 'running') || state.runs.find(isLoadedItem);
     if (open) selectRun(open.id);
     else renderEmpty(NONE_LOADED);
   } else if (!state.runs.length && !state.runId) renderEmpty();
@@ -252,10 +262,11 @@ async function selectRun(id, { keepDrawer = false } = {}) {
   const token = ++state.sel;
   state.runId = id; state.run = null; state.drawn = new Set(); state.gotSnapshot = false;
   state.backlogError = null;
+  rememberLastRun(id);
   // (a replay that is still there is of this same run: another run dropped it above. The last real Run it holds stays until a newer one comes,
   // so a replay that shows before the answer of this read is here still has its Replay again and its speeds at the end or at a cut)
   stopClock(); // the clock belongs to the run on show: the first snapshot of this run starts it again if it counts
-  if (!keepDrawer) { state.expanded = new Set(); state.testsExpanded = false; state.errOpen = false; closeDrawer(); clearSearchHit(); } // a reconnect keeps what the user opened
+  if (!keepDrawer) { restoreRunState(id); state.errOpen = false; closeDrawer(); clearSearchHit(); } // a reconnect keeps what the user opened
   syncHover();
   state.log.reset(id); state.backlogSeq = 0;
   renderLogNotice();
@@ -298,6 +309,24 @@ async function selectRun(id, { keepDrawer = false } = {}) {
   state.backlogError = events.error;
   renderLogNotice();
   loadEvents(events.data || []);
+}
+// What the page remembers of a run, in the browser (lib.js updateRunMemory): the rows opened in the matrix, the tests card opened, the
+// weak-edges switch. It is read when another run is chosen (restoreRunState; a reconnect keeps what is on show) and written only by the
+// user's own clicks on those three controls, so choosing a run writes none of it. A replay on show neither reads nor writes it.
+function restoreRunState(id) {
+  const mem = runMemoryOf(parseRunMemory(localGet('runState')), id);
+  state.expanded = new Set(mem.expanded);
+  state.testsExpanded = mem.tests;
+  state.weak = mem.weak;
+  $('#weak-toggle').checked = mem.weak; // the box keeps its own state from run to run: it says what this run has
+}
+function rememberRun(patch) {
+  if (!state.runId || replayOnShow()) return;
+  localSet('runState', JSON.stringify(updateRunMemory(parseRunMemory(localGet('runState')), state.runId, patch)));
+}
+// the run opened last: written when it differs from the stored one (a reconnect reads the same run again and writes nothing)
+function rememberLastRun(id) {
+  if (parseLastRun(id) !== null && localGet('lastRun') !== id) localSet('lastRun', id);
 }
 function applyRun(run) {
   state.run = run;
@@ -485,9 +514,14 @@ function renderLoadNote() {
 function setFilter(patch) {
   state.filter = { ...state.filter, ...patch };
   writeHash();
+  storeFilter();
   renderRunPicker();
 }
-// The hash is the filters' only home. replaceState throws in a sandboxed frame: then the state stays in the page.
+// The filters as the user left them, kept for the next visit as the hash text (empty when every filter is the default, so that clearing
+// them is remembered too). Only the user's changes and the check of stored filters write it; an address read at the start or on
+// hashchange never does.
+function storeFilter() { localSet('filters', formatPickerHash(state.filter)); }
+// The hash is the filters' address form. replaceState throws in a sandboxed frame: then the state stays in the page.
 function writeHash() {
   try {
     const hash = formatPickerHash(state.filter);
@@ -1285,6 +1319,8 @@ function resetSize(kind) {
 // the release (up, cancel or lost capture); the size is saved on release and only if it changed, so the first press of a
 // double click saves nothing. The drag starts from the sizes on show (all three, as clamped to the window now), not from the sizes
 // that were wanted: a column that is shown narrower than its saved size keeps the width the user sees while the other is dragged.
+// What is wanted afterwards is only the dragged size, the sizes that were already wanted and the sizes the drag pushed off their default
+// (lib.js wantedAfterDrag): a column that was only shown at its default is not a wish and keeps following the window.
 function startDrag(kind, e) {
   if (e.button !== 0) return;
   e.preventDefault();
@@ -1292,14 +1328,16 @@ function startDrag(kind, e) {
   const shown = applyLayout();
   const start = shown[kind];
   const from = { x: e.clientX, y: e.clientY };
+  const before = { ...state.layout }; // what was wanted at the press; every move builds the wanted layout from it, never from an earlier move
   let moved = false, over = false;
   try { handle.setPointerCapture(e.pointerId); } catch { /* the drag goes on while the pointer is over the handle */ }
   document.body.classList.add('resizing');
   handle.classList.add('drag');
   const move = (ev) => {
-    const sized = dragLayout(shown, kind, start, { dx: ev.clientX - from.x, dy: ev.clientY - from.y }, viewport());
+    const vp = viewport();
+    const sized = dragLayout(shown, kind, start, { dx: ev.clientX - from.x, dy: ev.clientY - from.y }, vp);
     if (sized[kind] !== start) moved = true;
-    if (moved) Object.assign(state.layout, sized); // what is shown is now what is wanted; only the dragged size is stored below
+    if (moved) state.layout = wantedAfterDrag(before, sized, kind, vp); // the dragged size, sizes already wanted and sizes the drag pushed off their default; a default side keeps following the window
     applyLayout(kind);
     scheduleEdges();
   };
@@ -1999,6 +2037,23 @@ async function copyHint() {
   setCopyStatus(ok ? 'copied' : 'failed');
 }
 
+// ---------- reset layout ----------
+// The header button: after a confirm (a confirm that is missing, throws or says no changes nothing) every key this page stores is removed
+// (lib.js STORED_KEYS: the sizes, the log, the view, the replay speed, the notice's close, the last run, the filters, the runs' memory;
+// nothing else of the browser's), the sizes and the filters on show go back to the default (so the address does not bring the old filters
+// back), and the page is loaded again from nothing (where it can be).
+function resetLayout() {
+  let yes = false;
+  try { yes = typeof confirm === 'function' && confirm(RESET_CONFIRM_TEXT) === true; } catch { yes = false; }
+  if (!yes) return;
+  for (const k of STORED_KEYS) localRemove(k);
+  state.layout = {};
+  applyLayout();
+  state.filter = defaultPickerFilter();
+  writeHash();
+  try { if (typeof location.reload === 'function') location.reload(); } catch { /* the page stays as it is */ }
+}
+
 // ---------- events ----------
 document.addEventListener('click', (e) => {
   // the search results: a click outside the search box and its panel closes the panel (its text and results stay)
@@ -2015,6 +2070,7 @@ document.addEventListener('click', (e) => {
   const more = e.target.closest('[data-tests-toggle]');
   if (more) { // the tests card: the rest of the rows, or back to the last few
     state.testsExpanded = !state.testsExpanded;
+    rememberRun({ tests: state.testsExpanded });
     if (state.run) renderTests(state.run);
     return;
   }
@@ -2022,6 +2078,7 @@ document.addEventListener('click', (e) => {
   if (u) { // a matrix row: show or hide its agents by round
     const unit = u.dataset.unit;
     if (state.expanded.has(unit)) state.expanded.delete(unit); else state.expanded.add(unit);
+    rememberRun({ expanded: [...state.expanded] });
     if (state.run) renderView();
     return;
   }
@@ -2070,7 +2127,7 @@ window.addEventListener('hashchange', onHashChange);
 $('#run-select').addEventListener('focusout', (e) => {
   if (state.picker.open && e.relatedTarget && !$('#run-select').contains(e.relatedTarget)) setPickerOpen(false, { focus: false });
 });
-$('#weak-toggle').onchange = (e) => { state.weak = e.target.checked; if (state.view === 'timeline' && state.run) renderTimeline(state.run); };
+$('#weak-toggle').onchange = (e) => { state.weak = e.target.checked; rememberRun({ weak: state.weak }); if (state.view === 'timeline' && state.run) renderTimeline(state.run); };
 $('#log-toggle').onclick = () => setLogCollapsed(!$('#log-pane').classList.contains('collapsed'));
 for (const [id, kind] of [['#handle-left', 'left'], ['#handle-right', 'right'], ['#handle-log', 'log']]) {
   $(id).addEventListener('pointerdown', (e) => startDrag(kind, e));
@@ -2093,6 +2150,7 @@ setLogCollapsed(localGet('logCollapsed') === '1');
 $('#hint-text').value = TRACKING_PROMPT;
 setHintOpen(hintInitiallyOpen(localGet('hint.closed')));
 $('#hint-open').addEventListener('click', openHint);
+$('#reset-layout').addEventListener('click', resetLayout);
 $('#hint-close').addEventListener('click', closeHint);
 $('#hint-copy').addEventListener('click', () => { copyHint(); });
 $('#hint').addEventListener('keydown', (e) => {

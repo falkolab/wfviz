@@ -4,6 +4,9 @@
 // given), timers that are only recorded, an event stream that a test pushes into. Differences from that copy: an event whose listener calls
 // stopPropagation goes no further (a listener of the document does not see it), and the fetch records its init (page.inits) so a test can see the
 // signal of a request. The page code is not changed for the test: bootPage imports web/app.js.
+// Layout memory (web-layout-memory.test.mjs): `confirm` (a function: the page's confirm(), its texts kept in page.confirms; 'throws': a confirm
+// that throws; left out: the page has no confirm), `reload` (false: location has no reload; else location.reload counts in page.reloads),
+// storage 'throws-on-access' (a localStorage whose every access throws) and page.location (the page's address object).
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -307,12 +310,12 @@ function parseHtml(doc, text) {
   return root;
 }
 
-const GLOBALS = ['document', 'window', 'location', 'history', 'localStorage', 'fetch', 'EventSource', 'ResizeObserver', 'CSS', 'getComputedStyle', 'requestAnimationFrame', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'];
+const GLOBALS = ['document', 'window', 'location', 'history', 'localStorage', 'confirm', 'fetch', 'EventSource', 'ResizeObserver', 'CSS', 'getComputedStyle', 'requestAnimationFrame', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'];
 const setGlobal = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true, enumerable: true });
 let bootCount = 0;
 
 // opts: runs (the list), runDocs (id -> Run), events (id -> UiEvent[], what the backlog answers), width, height, storage, layout (see offsetTop)
-export async function bootPage({ runs = [], runDocs = {}, events = {}, width = 1228, height = 800, storage = {}, failEvents = null, hash = '', answer = null, layout = null } = {}) {
+export async function bootPage({ runs = [], runDocs = {}, events = {}, width = 1228, height = 800, storage = {}, failEvents = null, hash = '', answer = null, layout = null, confirm = undefined, reload = true } = {}) {
   const saved = Object.fromEntries(GLOBALS.map((n) => [n, Object.getOwnPropertyDescriptor(globalThis, n)]));
   const doc = { listeners: {}, title: 'wfviz', activeElement: null };
   const html = parseHtml(doc, read('index.html'));
@@ -332,6 +335,7 @@ export async function bootPage({ runs = [], runDocs = {}, events = {}, width = 1
   const windowListeners = {};
   const page = {
     doc, timers, storage, requests: [], inits: [], es: null, root: doc.documentElement, runs, runDocs, events, failEvents, answer, windowListeners,
+    confirms: [], reloads: 0, location: null,
     el: (s) => { const e = html.querySelector(s); assert.ok(e, `index.html has ${s}`); return e; },
     flush: async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); },
     runTimeouts(ms) { for (const [id, t] of [...timers.timeouts]) if (t.ms === ms) { timers.timeouts.delete(id); t.fn(); } },
@@ -357,9 +361,14 @@ export async function bootPage({ runs = [], runDocs = {}, events = {}, width = 1
   setGlobal('window', { innerHeight: height, innerWidth: width, addEventListener(t, fn) { (windowListeners[t] ||= []).push(fn); } });
   // the page's address: the picker's filters live in location.hash (read at the start, written with history.replaceState)
   const location = { hash, pathname: '/', search: '' };
+  if (reload) location.reload = () => { page.reloads++; };
+  page.location = location;
   setGlobal('location', location);
+  if (confirm === 'throws') setGlobal('confirm', (text) => { page.confirms.push(String(text)); throw new Error('no dialogs here'); });
+  else if (typeof confirm === 'function') setGlobal('confirm', (text) => { page.confirms.push(String(text)); return confirm(text); });
   setGlobal('history', { replaceState(_state, _title, url) { location.hash = String(url).startsWith('#') ? String(url) : ''; } });
-  setGlobal('localStorage', { getItem: (k) => (k in storage ? storage[k] : null), setItem: (k, v) => { storage[k] = String(v); }, removeItem: (k) => { delete storage[k]; } });
+  if (storage === 'throws-on-access') Object.defineProperty(globalThis, 'localStorage', { get() { throw new Error('storage is denied'); }, configurable: true });
+  else setGlobal('localStorage', { getItem: (k) => (k in storage ? storage[k] : null), setItem: (k, v) => { storage[k] = String(v); }, removeItem: (k) => { delete storage[k]; } });
   setGlobal('getComputedStyle', () => ({ paddingLeft: '14px', paddingRight: '14px' }));
   setGlobal('CSS', { escape: (x) => String(x) });
   setGlobal('ResizeObserver', class { observe() {} });
