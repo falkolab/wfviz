@@ -21,7 +21,7 @@ Published 2026-11-15 (user): https://github.com/falkolab/wfviz (public, MIT), do
 (GitHub Pages from `main` `/docs`). `main` starts from one clean commit; the full development history before it is the
 local branch `archive/local-history` (never pushed). Kept local and git-ignored, never published: `evidence/`,
 `sources/video-frames/`, `sources/video-notes.md`, `sources/author-prompt.md`, `.claude/launch.json`. Before every push:
-`git grep -i ipg` must be empty. SSH to GitHub is refused in agent shells; push with
+a text search of tracked files (`git grep -I -i -w` with the employer's short name) must find nothing. SSH to GitHub is refused in agent shells; push with
 `git -c credential.helper='!gh auth git-credential' push https://github.com/falkolab/wfviz.git main`.
 
 ## Decisions in force
