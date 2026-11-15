@@ -15,6 +15,15 @@ Current state, 2026-11-15. The full history of decisions and runs up to this dat
 - `npm test`: 1429 pass, 0 fail, 0 skipped, 0 todo. Flaky watch tests fixed 2026-11-15 (see below).
 - Last workflow: 22 `wf_e7b48737-b8f` (L1 ui lows, pass after a resume). Next run script number: 23.
 
+## Repository
+
+Published 2026-11-15 (user): https://github.com/falkolab/wfviz (public, MIT), docs page https://falkolab.github.io/wfviz/
+(GitHub Pages from `main` `/docs`). `main` starts from one clean commit; the full development history before it is the
+local branch `archive/local-history` (never pushed). Kept local and git-ignored, never published: `evidence/`,
+`sources/video-frames/`, `sources/video-notes.md`, `sources/author-prompt.md`, `.claude/launch.json`. Before every push:
+`git grep -i ipg` must be empty. SSH to GitHub is refused in agent shells; push with
+`git -c credential.helper='!gh auth git-credential' push https://github.com/falkolab/wfviz.git main`.
+
 ## Decisions in force
 
 - Judge: codex cli, command given by the user per run, only in workflow args. The Codex workspace
