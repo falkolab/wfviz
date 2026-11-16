@@ -323,8 +323,9 @@ test('layout: the defaults apply when nothing is wanted; a column is 160 px .. h
   assert.deepEqual(clampLayout(undefined, VP), DEFAULTS_AT(VP));
   assert.equal(clampLayout({ left: 50 }, VP).left, 160);
   assert.equal(clampLayout({ left: 160 }, VP).left, 160);
-  assert.equal(clampLayout({ left: 9999, right: 160 }, VP).left, 700, 'half of 1400');
-  assert.equal(clampLayout({ right: 9999, left: 160 }, VP).right, 700);
+  // the two columns together take at most half of the width minus the two handles (684 at 1400): a column is that less the other's minimum
+  assert.equal(clampLayout({ left: 9999, right: 160 }, VP).left, 1400 / 2 - 2 * HANDLE_WIDTH - 160, 'the bound minus the other column\'s minimum');
+  assert.equal(clampLayout({ right: 9999, left: 160 }, VP).right, 1400 / 2 - 2 * HANDLE_WIDTH - 160);
   assert.equal(clampLayout({ log: 10 }, VP).log, 80);
   assert.equal(clampLayout({ log: 9999 }, VP).log, 480, '60% of 800');
   assert.equal(clampLayout({ log: 300 }, VP).log, 300);
@@ -337,22 +338,25 @@ test('layout: a wish that is not a finite number is the default', () => {
   }
 });
 
-test('layout: two columns never take the centre: it keeps CENTER_MIN, in a window of any width above one column', () => {
+test('layout: two columns never take the centre: it keeps half of the width (and CENTER_MIN), in a window of any width above one column', () => {
   for (const width of [1101, 1200, 1400, 2000, 3000]) {
     for (const prefer of [null, 'left', 'right']) {
       const s = clampLayout({ left: 9999, right: 9999, log: 100 }, { width, height: 800 }, prefer);
       const centre = width - s.left - s.right - 2 * HANDLE_WIDTH;
       assert.ok(centre >= CENTER_MIN, `width ${width}, prefer ${prefer}: centre ${centre}`);
+      assert.ok(centre >= width / 2, `width ${width}, prefer ${prefer}: the centre keeps half of the width: ${centre}`);
       assert.ok(s.left >= 160 && s.right >= 160 && s.left <= width / 2 && s.right <= width / 2);
     }
   }
-  const dragged = clampLayout({ left: 9999, right: 600 }, { width: 1400, height: 800 }, 'left');
-  assert.equal(dragged.right, 600, 'the column being dragged gives way to the limit, the other keeps its size');
-  assert.equal(dragged.left, 1400 - 600 - CENTER_MIN - 2 * HANDLE_WIDTH);
-  const other = clampLayout({ left: 600, right: 9999 }, { width: 1400, height: 800 }, 'right');
-  assert.deepEqual([other.left, other.right], [600, 1400 - 600 - CENTER_MIN - 2 * HANDLE_WIDTH]);
+  // a right column that fits (300) beside the dragged left one: the dragged column stops where the centre would fall under half
+  const dragged = clampLayout({ left: 9999, right: 300 }, { width: 1400, height: 800 }, 'left');
+  assert.equal(dragged.right, 300, 'the column being dragged gives way to the limit, the other keeps its size');
+  assert.equal(dragged.left, 1400 / 2 - 2 * HANDLE_WIDTH - 300);
+  const other = clampLayout({ left: 384, right: 9999 }, { width: 1400, height: 800 }, 'right');
+  assert.deepEqual([other.left, other.right], [384, 1400 / 2 - 2 * HANDLE_WIDTH - 384]);
   const both = clampLayout({ left: 700, right: 700 }, { width: 1400, height: 800 });
   assert.ok(Math.abs(both.left - both.right) <= 1, 'with no one dragging both shrink in proportion');
+  assert.ok(both.left + both.right <= 1400 / 2 - 2 * HANDLE_WIDTH, 'and together stay within the bound');
 });
 
 test('layout: a window with no size gives the minimums, not a crash', () => {

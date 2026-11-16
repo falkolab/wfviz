@@ -90,11 +90,16 @@ test('clampLayout: only a missing side takes the width-dependent default; a stor
   const at = defaultColumns(1440);
   assert.deepEqual(clampLayout({}, vp), { left: at.left, right: at.right, log: 190 }, 'nothing stored: the width-dependent default');
   assert.deepEqual(clampLayout({ left: 300 }, vp), { left: 300, right: at.right, log: 190 }, 'a stored left wins, the right follows the window');
-  assert.deepEqual(clampLayout({ right: 450 }, vp), { left: at.left, right: 450, log: 190 }, 'a stored right wins, the left follows the window');
-  assert.deepEqual(clampLayout({ left: 300, right: 450 }, vp), { left: 300, right: 450, log: 190 });
-  assert.equal(clampLayout({ left: 480, right: 600 }, vp).left + clampLayout({ left: 480, right: 600 }, vp).right <= 1440 - CENTER_MIN, true, 'the stored wide pair still leaves the centre');
+  // the stored sizes here fit beside the other side (the two together stay within half of the width minus the handles, 704 at 1440)
+  assert.deepEqual(clampLayout({ right: 380 }, vp), { left: at.left, right: 380, log: 190 }, 'a stored right wins, the left follows the window');
+  assert.deepEqual(clampLayout({ left: 300, right: 380 }, vp), { left: 300, right: 380, log: 190 });
+  // a stored size that does not fit beside the other is shrunk with it (the next tests cover the rule): 450 beside the default 312 is over 704
+  assert.deepEqual(clampLayout({ right: 450 }, vp), { left: 288, right: 415, log: 190 }, 'a stored right that is over the bound shares it with the default left');
+  assert.deepEqual(clampLayout({ left: 300, right: 450 }, vp), { left: 281, right: 422, log: 190 }, 'two stored sizes over the bound shrink together');
+  const wide = clampLayout({ left: 480, right: 600 }, vp);
+  assert.equal(wide.left + wide.right <= 704, true, 'the stored wide pair leaves the centre half of the width');
   assert.equal(clampLayout({ left: 50 }, vp).left, COLUMN_MIN, 'a stored width under the minimum is clamped to it');
-  assert.equal(clampLayout({ left: 99999 }, vp).left <= 720, true, 'and one over the maximum (half) to that');
+  assert.equal(clampLayout({ left: 99999 }, vp).left <= 704 - COLUMN_MIN, true, 'and one over the bound to the bound less the other column\'s minimum');
   // a window wide enough: the stored 300 still wins over the 480 the default would be
   assert.equal(clampLayout({ left: 300 }, { width: 2560, height: 800 }).left, 300);
   assert.deepEqual(clampLayout({}, { width: 2560, height: 800 }), { left: 480, right: 600, log: 190 });
@@ -369,7 +374,7 @@ test('page: a stored width wins over the default, is clamped by the existing lim
     assert.equal(css(small.page, '--left-w'), `${want.left}px`);
     assert.equal(want.left, COLUMN_MIN, 'a stored width under the minimum is clamped to it');
     assert.equal(css(small.page, '--right-w'), `${want.right}px`);
-    assert.ok(want.right <= 720 && want.right > 600, 'and one over the maximum to the half of the width, not to the default');
+    assert.equal(want.right, 704 - COLUMN_MIN, 'and one over the bound to the bound (half of the width less the handles, 704) less the other column\'s minimum');
   } finally { small.page.restore(); }
 });
 
@@ -409,14 +414,14 @@ test('page: a resize recomputes the default width from the new window, writes on
 
 test('page: a resize keeps a stored width and moves the other side with the window', withPage(async ({ page }) => {
   const grid = page.el('.grid');
-  assert.equal(css(page, '--left-w'), '300px');
+  assert.equal(css(page, '--left-w'), '250px');
   for (const w of [2588, 1468]) {
     grid.clientWidth = w;
     for (const fn of page.windowListeners.resize) fn();
-    assert.equal(css(page, '--left-w'), '300px', `window ${w}`);
+    assert.equal(css(page, '--left-w'), '250px', `window ${w}`);
     assert.equal(css(page, '--right-w'), `${defaultColumns(w - 28).right}px`, `window ${w}`);
   }
-}, { width: 1228, storage: { [K('layout.left')]: '300' } }));
+}, { width: 1228, storage: { [K('layout.left')]: '250' } }));
 
 test('page: a drag stores the side that was dragged and nothing else; the default side is not stored', withPage(async ({ page, storage }) => {
   const handle = page.el('#handle-left');
@@ -476,8 +481,9 @@ test('page: after a drag of the left handle only, the left column keeps the drag
   } finally { left.page.restore(); }
   const right = await boot({ width: 1468 });
   try {
-    await drag(right.page, '#handle-right', [900, 100], [850, 100]); // the right column grows by 50
-    const dragged = defaultColumns(1440).right + 50;
+    // the right column gets 50 px narrower (the two defaults fill what half of the width allows, so it could not grow before the left one is narrowed)
+    await drag(right.page, '#handle-right', [850, 100], [900, 100]);
+    const dragged = defaultColumns(1440).right - 50;
     assert.equal(css(right.page, '--right-w'), `${dragged}px`);
     assert.equal(right.storage[K('layout.left')], undefined);
     assert.equal(right.storage[K('layout.right')], String(dragged));
@@ -488,14 +494,14 @@ test('page: after a drag of the left handle only, the left column keeps the drag
 });
 
 test('page: a drag does not unset a size that was already wanted: a stored right keeps its width (as shown) while the left is dragged, and the default log follows the window height', async () => {
-  const b = await boot({ width: 1468, storage: { [K('layout.right')]: '450' } });
+  const b = await boot({ width: 1468, storage: { [K('layout.right')]: '380' } });
   try {
     const { page, storage } = b;
     await drag(page, '#handle-left', [500, 100], [450, 100]);
-    assert.equal(css(page, '--right-w'), '450px');
-    assert.equal(storage[K('layout.right')], '450', 'the stored width stays as it was');
+    assert.equal(css(page, '--right-w'), '380px');
+    assert.equal(storage[K('layout.right')], '380', 'the stored width stays as it was');
     widen(page, 2560);
-    assert.equal(css(page, '--right-w'), '450px', 'a stored width wins over the window');
+    assert.equal(css(page, '--right-w'), '380px', 'a stored width wins over the window');
     assert.equal(css(page, '--left-w'), `${defaultColumns(1440).left - 50}px`);
   } finally { b.page.restore(); }
 });

@@ -178,11 +178,15 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .view { position: relative; min-height: 200px; padding: 8px 8px 6px 4px; }
 /* matrix */
 /* the cells and the label of one row are as tall as the row (the tallest of them): the grid stretches them, and a cell centres its
-   own content. A header cell keeps its own centring. */
-.matrix { display: grid; gap: 4px; align-items: stretch; position: relative; }
+   own content. A header cell keeps its own centring. The unit and role tracks have a maximum (the template is inline, lib.js matrixColumns:
+   unit 280 px, role 160 px) and the grid is packed to the start, so a wide centre leaves its room empty on the right and does not stretch
+   the columns. The template ends with one empty track that takes the rest of the width, so the round history of a unit (it spans every
+   track) is as wide as the centre; the label of a row is pinned to the first column, which makes every row start there and keeps the
+   cells out of that last track. */
+.matrix { display: grid; gap: 4px; justify-content: start; align-items: stretch; position: relative; }
 .mhead { min-width: 0; color: var(--muted); font-size: 11px; text-align: center; text-transform: uppercase; padding-bottom: 4px; overflow-wrap: anywhere; align-self: center; }
 .mhead.colspot { color: var(--accent); }
-.mrow-label { min-width: 0; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; min-height: 46px; transition: border-color .3s, background .3s; }
+.mrow-label { grid-column: 1; min-width: 0; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; min-height: 46px; transition: border-color .3s, background .3s; }
 .mrow-label .u { font-weight: 600; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0; row-gap: 0; }
 /* the name is one box of its own width: it moves below the toggle when it does not fit beside it, and breaks inside only when it
    does not fit in the column at all */
@@ -251,7 +255,8 @@ dd { margin: 0; overflow-wrap: anywhere; }
 @keyframes ripple { from { box-shadow: 0 0 0 0 var(--c, var(--run)); opacity: .9; } to { box-shadow: 0 0 0 8px var(--c, var(--run)); opacity: 0; } }
 @keyframes pop { from { transform: scale(.2); } to { transform: scale(1); } }
 /* phases view */
-.lanes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 8px; overflow-x: auto; }
+/* a lane is 180 .. 360 px wide and the lanes are packed to the start: spare room stays empty on the right */
+.lanes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 360px); justify-content: start; gap: 8px; overflow-x: auto; }
 .lane { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 .lane.active { border-color: var(--accent); box-shadow: 0 0 16px -6px var(--accent); }
 .lane h4 { margin: 0 0 6px; font-size: 12px; }

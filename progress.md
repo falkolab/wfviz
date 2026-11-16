@@ -12,8 +12,8 @@ Current state, 2026-11-15. The full history of decisions and runs up to this dat
 - Acceptance CHECKS 1–8: done with evidence in `checks.md` (N10).
 - Handoff N11: `README.md` written, `AGENTS.md` updated, this file compacted (2026-11-15). The
   "graph template" for other projects is deferred until a second project needs it (user agreed).
-- `npm test`: 1429 pass, 0 fail, 0 skipped, 0 todo. Flaky watch tests fixed 2026-11-15 (see below).
-- Last workflow: 22 `wf_e7b48737-b8f` (L1 ui lows, pass after a resume). Next run script number: 23.
+- `npm test`: 1536 pass, 0 fail, 0 skipped, 0 todo. Flaky watch tests fixed 2026-11-15 (see below).
+- Last workflow: 25 `wf_fd2d0165-4b9` (L4 layout fixes, pass). Next run script number: 26.
 
 ## Repository
 
@@ -48,6 +48,9 @@ receives the note. Option `trackingHint` is unset (counts as on).
   - run list: in replay mode the picker hides its one run under the 24 h default; a loaded running run
     with no known start is hidden by the 24 h default;
   - source: thinking-only assistant records are not emitted (26 of 12,889 messages lose their usage).
+- L4 consequence to confirm with the user: below a 2192 px grid the default side columns already fill their half, so a drag widens one
+  column only after the other is narrowed. Lows: the round history row shrinks with the capped matrix tracks (fixed in round 1); a test
+  title in web-layout-memory still reads as the old start order.
 - Auto-open of wfviz on a Workflow call (PreToolUse hook): proposed 2026-11-08, needs the user's
   approval of a config change; not started.
 

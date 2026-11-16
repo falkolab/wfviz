@@ -1190,6 +1190,22 @@ export const RUN_MEMORY_UNITS_MAX = 100;
 // A stored run id: a text of 1 .. STORED_ID_MAX characters, else null. It is data (compared with the ids of the list), never a selector.
 export const parseLastRun = (text) => (typeof text === 'string' && text.length > 0 && text.length <= STORED_ID_MAX ? text : null);
 
+// The run the first page opens when the address names none: the id of a loaded run that is running (the first of them in the order of the
+// list, when several), else the run of the last visit (`rememberedId`) when the list still has it (a run that is only listed counts: it is
+// read on the choice), else the first loaded run, else null (no run is loaded: the page says so). It reads only id, status and loaded of an
+// item: an item without `loaded` counts as loaded; one with `loaded: false` is never "running", whatever its listed status says; a status
+// that is missing or unknown is not running; an entry that is not an object or has no id (a text) is skipped, and so is any other value
+// than an array. A remembered id that is not a text or is not in the list is ignored. Nothing is read from storage here.
+export function chooseStartRun(items, rememberedId) {
+  if (!Array.isArray(items)) return null;
+  const runs = items.filter((r) => r !== null && typeof r === 'object' && isStr(r.id));
+  const loaded = (r) => r.loaded !== false;
+  const running = runs.find((r) => loaded(r) && val(r.status) === 'running');
+  if (running) return running.id;
+  if (typeof rememberedId === 'string' && runs.some((r) => r.id === rememberedId)) return rememberedId;
+  return runs.find(loaded)?.id ?? null;
+}
+
 // The filter the page starts with. Any address hash (anything after the "#") wins whole, with no key taken from the stored text. With
 // no hash the stored text (what formatPickerHash gave, read back by parsePickerHash only) is the filter, `fromStorage` true so that the
 // caller writes it to the address. A stored value that is not a text of a sane length is no value. Whatever does not parse is the default.
@@ -1666,7 +1682,12 @@ const COLUMN_MIN = 160;
 const COLUMN_MAX_RATIO = 0.5;
 const LOG_MIN = 80;
 const LOG_MAX_RATIO = 0.6;
-// The centre column keeps at least this much, so two columns at half the width each cannot leave no centre.
+// A wanted width above this counts as this wide (a column is held to half of the width anyway). Two wishes near Number.MAX_VALUE would add
+// up to Infinity and the shrink would divide Infinity by Infinity (NaN); under this limit the sum and the products stay finite, and every
+// width a person can have stored (far below it) is used as it is.
+const WISH_MAX = 2 ** 40;
+// The centre column keeps at least this much. Only a window narrower than 480 px comes to it: from there up, the rule that the two side
+// columns together leave the centre half of the width (the bound in clampLayout) is the narrower one.
 export const CENTER_MIN = 240;
 export const HANDLE_WIDTH = 8;
 // The wide defaults of the side columns (twice the first ones, a ratio of 4:5) and the log height. The columns take these only when the
@@ -1699,10 +1720,14 @@ export function defaultColumns(width) {
   return { left: Math.floor((left * room) / (left + right)), right: Math.floor((right * room) / (left + right)) };
 }
 
-// The sizes to show for the wanted ones in a window of { width, height }: a column is 160 px .. half the width, the log is
-// 80 px .. 60% of the height, and the two columns together leave the centre CENTER_MIN. A missing or bad wanted size is the
-// default (a side column's default depends on the width: defaultColumns). When both columns do not fit, the column named by `prefer` (the one being dragged) gives way first; without
-// `prefer` both shrink in proportion.
+// The sizes to show for the wanted ones in a window of { width, height }. A column is 160 px .. half the width, the log is 80 px .. 60% of
+// the height, and the two side columns together never take more than half of the width minus the two handles (the bound defaultColumns
+// uses too), so the centre keeps at least half of the width, whatever width was stored or dragged (a window that is narrower than 480 px
+// keeps CENTER_MIN instead, which is the smaller room there). A missing or bad wanted size is the default (a side column's default depends
+// on the width: defaultColumns); a wanted size is the user's, shown here and never written back. When the two columns do not fit:
+// without `prefer`, the wanted widths shrink together, in the ratio of the wanted ones (a wish under the minimum counts as the minimum);
+// with `prefer` (the column being dragged), that column stops where the centre would fall under half and the other stays as it is when
+// it fits, else gives way. COLUMN_MIN wins when the window is too narrow for the rule (the layout of a narrow window is one column anyway).
 export function clampLayout(wanted, viewport, prefer = null) {
   const w = isSize(viewport?.width) ? viewport.width : 0;
   const h = isSize(viewport?.height) ? viewport.height : 0;
@@ -1710,23 +1735,29 @@ export function clampLayout(wanted, viewport, prefer = null) {
   const defaults = { ...defaultColumns(w), log: LAYOUT_DEFAULTS.log };
   const pick = (k) => (typeof wanted?.[k] === 'number' && Number.isFinite(wanted[k]) ? wanted[k] : defaults[k]);
   const colMax = Math.floor(w * COLUMN_MAX_RATIO);
-  let left = between(pick('left'), COLUMN_MIN, colMax);
-  let right = between(pick('right'), COLUMN_MIN, colMax);
-  const room = w - CENTER_MIN - 2 * HANDLE_WIDTH;
+  // a whole number: two whole widths that add up to it leave the centre its half, where a fractional bound plus the rounding below could not
+  const room = Math.min(Math.floor(w / 2) - 2 * HANDLE_WIDTH, w - CENTER_MIN - 2 * HANDLE_WIDTH);
+  let left = Math.min(Math.round(pick('left')), WISH_MAX);
+  let right = Math.min(Math.round(pick('right')), WISH_MAX);
+  const sum = Math.max(left, COLUMN_MIN) + Math.max(right, COLUMN_MIN);
+  // Shrunk before the limits are applied: the limits would otherwise turn two wishes into the half of the width each and lose their ratio.
+  if (prefer !== 'left' && prefer !== 'right' && sum > room) {
+    left = Math.floor((Math.max(left, COLUMN_MIN) * room) / sum);
+    right = Math.floor((Math.max(right, COLUMN_MIN) * room) / sum);
+  }
+  left = between(left, COLUMN_MIN, colMax);
+  right = between(right, COLUMN_MIN, colMax);
+  // a column raised to the minimum (or a dragged one) can still break the bound: the other gives way, the dragged one first of all
   if (left + right > room) {
     if (prefer === 'left') {
       left = between(left, COLUMN_MIN, room - right);
       right = between(right, COLUMN_MIN, room - left);
-    } else if (prefer === 'right') {
+    } else {
       right = between(right, COLUMN_MIN, room - left);
       left = between(left, COLUMN_MIN, room - right);
-    } else {
-      const f = room / (left + right);
-      left = between(Math.floor(left * f), COLUMN_MIN, colMax);
-      right = between(Math.floor(right * f), COLUMN_MIN, colMax);
     }
   }
-  return { left: Math.round(left), right: Math.round(right), log: Math.round(between(pick('log'), LOG_MIN, Math.floor(h * LOG_MAX_RATIO))) };
+  return { left, right, log: Math.round(between(pick('log'), LOG_MIN, Math.floor(h * LOG_MAX_RATIO))) };
 }
 
 // A handle was dragged from (x, y) by (dx, dy), the size being `start` when the drag began: the left column grows with dx, the
@@ -1755,6 +1786,17 @@ export function wantedAfterDrag(wanted, sized, kind, viewport) {
 }
 
 // ---------- the matrix: role x unit, and the fallback rows (docs/contract.md section 2) ----------
+
+// The column tracks of the matrix grid for `roleCount` role columns: the unit column (120 .. 280 px), one track for each role (44 .. 160 px)
+// and a last, empty track that takes whatever room is left. The unit and role tracks all have a maximum, so a wide centre does not stretch
+// them over all of it: they stay packed at the start (style.css) and the room that is left stays empty on the right. The last track is
+// there for the round history of a unit (it spans the whole grid, so it is as wide as the centre, not as wide as the capped columns); no
+// cell goes into it (style.css puts the label of a row in the first column, so a row starts there). A centre narrower than the minimums
+// scrolls. A count that is not a positive whole number gives the unit track alone (`repeat(0, ...)` is not valid CSS).
+export function matrixColumns(roleCount) {
+  const unit = 'minmax(120px, 280px)';
+  return Number.isInteger(roleCount) && roleCount > 0 ? `${unit} repeat(${roleCount}, minmax(44px, 160px)) minmax(0, 1fr)` : unit;
+}
 
 // The state of a unit's row from its agents.
 export function unitState(agents) {

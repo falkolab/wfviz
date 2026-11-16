@@ -42,7 +42,7 @@ import {
   relatedIds, hoverInfo, lastEventOf, splitError, runOption, elapsedFact, fetchErrorText, backlogNotice, modeInfo,
   slotVar, orderOfAppearance, runStatusClass, pickerRow, filterRunRows, summaryOfRun, mergeRun, mergeRunList, scrollToShow,
   morphHtml, keyOf, dedupeKeys, sameJson, specOf, groupOf, createSpecEl, updateSpecEl, createNode, updateNode, entryKeys, createListState, patchList, appendItems, prependItems, dropItems, clearList,
-  matrixModel, findingCounts, clockTick, testsView, clampLayout, dragLayout, wantedAfterDrag, parseStoredSize,
+  matrixModel, matrixColumns, findingCounts, clockTick, testsView, clampLayout, dragLayout, wantedAfterDrag, parseStoredSize, chooseStartRun,
   scopeSplit, runItemLabel, runResultView,
 } from './lib.js';
 import { TRACKING_PROMPT, hintInitiallyOpen, copyPath, copyLabel, focusQuietly, selectAll } from './lib.js';
@@ -244,14 +244,12 @@ async function loadRuns() {
   const checked = sanitizePickerFilter(state.filter, pickerFilterOptions(state.runs));
   if (checked.changed) { state.filter = checked.filter; writeHash(); if (start.fromStorage) storeFilter(); }
   renderRunPicker();
-  // the first page opens the run of the last visit when the list still has it (a run that is gone is ignored, silently, and it beats the
-  // running one); else a run that is loaded (a running one, else the first). Any other run that is only listed opens on a click.
-  const isLoadedItem = (r) => r.loaded !== false;
+  // The first page opens a run that is running (chooseStartRun), else the run of the last visit when the list still has it (a run that is
+  // gone is ignored, silently), else the first loaded run. Any other run that is only listed opens on a click. A run already on show
+  // (state.runId) is left alone.
   if (!state.runId && state.runs.length) {
-    const remembered = parseLastRun(localGet('lastRun'));
-    const open = state.runs.find((r) => remembered !== null && r.id === remembered)
-      || state.runs.find((r) => isLoadedItem(r) && val(r.status) === 'running') || state.runs.find(isLoadedItem);
-    if (open) selectRun(open.id);
+    const open = chooseStartRun(state.runs, parseLastRun(localGet('lastRun')));
+    if (open !== null) selectRun(open);
     else renderEmpty(NONE_LOADED);
   } else if (!state.runs.length && !state.runId) renderEmpty();
 }
@@ -262,7 +260,6 @@ async function selectRun(id, { keepDrawer = false } = {}) {
   const token = ++state.sel;
   state.runId = id; state.run = null; state.drawn = new Set(); state.gotSnapshot = false;
   state.backlogError = null;
-  rememberLastRun(id);
   // (a replay that is still there is of this same run: another run dropped it above. The last real Run it holds stays until a newer one comes,
   // so a replay that shows before the answer of this read is here still has its Replay again and its speeds at the end or at a cut)
   stopClock(); // the clock belongs to the run on show: the first snapshot of this run starts it again if it counts
@@ -303,6 +300,9 @@ async function selectRun(id, { keepDrawer = false } = {}) {
     ]);
   }
   if (token !== state.sel) return; // another run was selected meanwhile
+  // the run is remembered as the last one only now that its data is here, and only while it is still the chosen one (a run that did not load,
+  // or that was left before its answer came, is not); a replay on show has its own view and leaves it alone
+  if (run && !replayOnShow()) rememberLastRun(id);
   // a snapshot that arrived by SSE while the request was out is newer than the answer
   if (run && !state.gotSnapshot) applyRun(run);
   // events that failed to load are not made up: the log says so, and the next live event (or choosing the run again) reads the backlog again
@@ -324,7 +324,8 @@ function rememberRun(patch) {
   if (!state.runId || replayOnShow()) return;
   localSet('runState', JSON.stringify(updateRunMemory(parseRunMemory(localGet('runState')), state.runId, patch)));
 }
-// the run opened last: written when it differs from the stored one (a reconnect reads the same run again and writes nothing)
+// the run that was shown last, written after its data arrived (selectRun), and only when it differs from the stored one (a reconnect reads
+// the same run again and writes nothing)
 function rememberLastRun(id) {
   if (parseLastRun(id) !== null && localGet('lastRun') !== id) localSet('lastRun', id);
 }
@@ -896,7 +897,7 @@ function renderMatrix(run) {
   setShown(note, !!m.note);
   setShown(fb, m.fallback.length > 0);
   if (m.note) setText(note, m.note);
-  setStyleProp(grid, 'grid-template-columns', `minmax(120px, 1.4fr) repeat(${m.roles.length}, minmax(44px, 1fr))`);
+  setStyleProp(grid, 'grid-template-columns', matrixColumns(m.roles.length));
   lists.grid.sync(m.roles.length ? matrixSpecs(run, m, counts) : []);
   lists.fallback.sync(fallbackSpecs(run, m, counts));
 }

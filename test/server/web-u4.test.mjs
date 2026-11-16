@@ -1521,7 +1521,8 @@ test('wide matrix: many roles and a 40-character role name are not cut; the role
   const page = await bootPage({ runs: [summary(r)], runDocs: { wf_1: r } });
   try {
     const grid = page.el('#matrix-grid');
-    assert.match(grid.props.get('grid-template-columns'), /repeat\(15, minmax\(44px, 1fr\)\)/, 'a column for every role');
+    assert.equal(grid.props.get('grid-template-columns'), lib.matrixColumns(15), 'a column for every role');
+    assert.match(grid.props.get('grid-template-columns'), /repeat\(15, minmax\(44px, 160px\)\)/, 'a column for every role, each at most 160 px wide');
     const heads = grid.childNodes.filter((c) => c.classes.has('mhead'));
     assert.equal(heads.length, 16, 'the unit head and 15 roles');
     assert.ok(heads.some((h) => h.html === long), 'the whole role name');
